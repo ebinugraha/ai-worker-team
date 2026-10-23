@@ -185,16 +185,16 @@ export function DialogCreateBot({
         </div>
 
         {/* Face / Avatar Section */}
-        <div className="flex items-center justify-between p-3 rounded-xl border border-border/60 bg-muted/20">
+        <div className="flex items-center justify-between py-0.5">
           <div className="flex items-center gap-3">
-            <div className="size-11 rounded-xl overflow-hidden shrink-0 border border-border/40 flex items-center justify-center bg-muted/40">
-              <SeedAvatar seed={watchAvatar} size={40} />
+            <div className="size-10 overflow-hidden shrink-0 flex items-center justify-center">
+              <SeedAvatar seed={watchAvatar} size={40} className="rounded-none" />
             </div>
             <div className="flex flex-col">
               <span className="text-sm font-semibold text-foreground leading-tight">
                 Face
               </span>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground mt-0.5">
                 Shuffle until you find one you like.
               </span>
             </div>
@@ -204,7 +204,7 @@ export function DialogCreateBot({
             variant="outline"
             size="sm"
             onClick={handleShuffleAvatar}
-            className="rounded-full px-3 gap-1.5 text-xs font-medium border-border/80 hover:bg-muted"
+            className="rounded-lg h-8 px-3 gap-1.5 text-xs font-medium border-border/80 hover:bg-muted cursor-pointer"
           >
             <ShuffleIcon className="size-3.5" data-icon="inline-start" />
             Shuffle
@@ -218,7 +218,7 @@ export function DialogCreateBot({
             <Field data-invalid={!!errors.name} className="gap-1.5">
               <FieldLabel
                 htmlFor="bot-name"
-                className="text-xs font-medium text-foreground"
+                className="text-sm font-medium text-foreground"
               >
                 Name
               </FieldLabel>
@@ -241,7 +241,7 @@ export function DialogCreateBot({
             <Field data-invalid={!!errors.job} className="gap-1.5">
               <FieldLabel
                 htmlFor="bot-job"
-                className="text-xs font-medium text-foreground"
+                className="text-sm font-medium text-foreground"
               >
                 Job
               </FieldLabel>
@@ -264,7 +264,7 @@ export function DialogCreateBot({
             <Field data-invalid={!!errors.instructions} className="gap-1.5">
               <FieldLabel
                 htmlFor="bot-instructions"
-                className="text-xs font-medium text-foreground"
+                className="text-sm font-medium text-foreground"
               >
                 How it should work
               </FieldLabel>

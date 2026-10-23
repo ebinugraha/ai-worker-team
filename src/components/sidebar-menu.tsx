@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { PlusIcon, SearchIcon, UsersIcon } from "lucide-react";
 import { formatDistanceToNowStrict } from "date-fns";
@@ -71,11 +72,10 @@ export function SidebarMenu({
   onCreateGroupChat,
   ...props
 }: SidebarMenuProps) {
-  const [selectedBotId, setSelectedBotId] = React.useState<string | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
   const [openCreateBot, setOpenCreateBot] = React.useState(false);
   const [openCommand, setOpenCommand] = React.useState(false);
-
-  const activeBotId = selectedBotId ?? initialBots[0]?.id ?? null;
 
   // Keyboard shortcut for Cmd+K / Ctrl+K
   React.useEffect(() => {
@@ -170,7 +170,8 @@ export function SidebarMenu({
             <SidebarGroupContent>
               <UiSidebarMenu className="gap-1.5 group-data-[collapsible=icon]:gap-2 group-data-[collapsible=icon]:items-center">
                 {initialBots.map((bot) => {
-                  const isActive = activeBotId === bot.id;
+                  const chatPath = `/chat/${bot.id}`;
+                  const isActive = pathname === chatPath;
                   const relativeTime = formatRelativeTime(bot.createdAt);
 
                   return (
@@ -182,7 +183,9 @@ export function SidebarMenu({
                         size="lg"
                         isActive={isActive}
                         tooltip={`${bot.name} • ${bot.job}`}
-                        onClick={() => setSelectedBotId(bot.id)}
+                        onClick={() => {
+                          router.push(chatPath);
+                        }}
                         className={cn(
                           "h-auto p-2.5 rounded-xl gap-3 transition-colors cursor-pointer text-left w-full",
                           isActive
@@ -280,7 +283,7 @@ export function SidebarMenu({
                 key={bot.id}
                 value={`${bot.name} ${bot.job} ${bot.instruction || ""}`}
                 onSelect={() => {
-                  setSelectedBotId(bot.id);
+                  router.push(`/chat/${bot.id}`);
                   setOpenCommand(false);
                 }}
                 className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer"

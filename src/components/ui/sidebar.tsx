@@ -329,7 +329,12 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
 
       setIsResizing(true)
 
-      const COLLAPSE_THRESHOLD = 140
+      // Hysteresis thresholds to completely prevent jitter / flickering:
+      // COLLAPSE_THRESHOLD: cursor must move left below this to collapse (< 100px)
+      // EXPAND_THRESHOLD: cursor must move right past this to expand (> 150px)
+      // The gap between 100px and 150px is the deadband where state NEVER oscillates.
+      const COLLAPSE_THRESHOLD = 100
+      const EXPAND_THRESHOLD = 150
       const MIN_WIDTH = 180
       const MAX_WIDTH = 450
 
@@ -340,16 +345,17 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
 
         if (isCurrentlyOpen) {
           if (clientX < COLLAPSE_THRESHOLD) {
-            // Ketika di minimalkan banget -> berubah ke mode collapsible
+            // Ketika di minimalkan banget (< 100px) -> ubah ke mode collapsible
             isCurrentlyOpen = false
             setOpen(false)
           } else {
+            // Lebar sidebar di-clamp di minimum MIN_WIDTH selama masih open
             const newWidth = Math.min(Math.max(clientX, MIN_WIDTH), MAX_WIDTH)
             setWidth(newWidth)
           }
         } else {
-          // Ketika dalam mode collapse, jika diseret keluar (> 90px) maka expand kembali
-          if (clientX > 90) {
+          // Ketika dalam mode collapse, hanya expand jika ditarik jelas ke kanan melewati EXPAND_THRESHOLD (> 150px)
+          if (clientX > EXPAND_THRESHOLD) {
             isCurrentlyOpen = true
             setOpen(true)
             const newWidth = Math.min(Math.max(clientX, MIN_WIDTH), MAX_WIDTH)

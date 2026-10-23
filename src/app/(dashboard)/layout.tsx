@@ -9,6 +9,28 @@ export const metadata: Metadata = {
   description: "Dashboard Workspace",
 };
 
+function SidebarFallback() {
+  return (
+    <div
+      aria-hidden="true"
+      className="hidden md:flex flex-col w-(--sidebar-width) h-svh border-r border-sidebar-border bg-sidebar p-3 gap-3"
+    >
+      <div className="flex justify-end">
+        <div className="size-7 rounded-lg bg-sidebar-accent/50 animate-pulse" />
+      </div>
+      <div className="h-8 w-full rounded-lg bg-sidebar-accent/50 animate-pulse" />
+      <div className="flex-1 flex flex-col gap-2 mt-2">
+        <div className="h-14 w-full rounded-xl bg-sidebar-accent/30 animate-pulse" />
+        <div className="h-14 w-full rounded-xl bg-sidebar-accent/30 animate-pulse" />
+      </div>
+      <div className="pt-2 border-t border-sidebar-border flex items-center gap-2">
+        <div className="size-8 rounded-full bg-sidebar-accent/50 animate-pulse" />
+        <div className="h-4 w-24 rounded bg-sidebar-accent/50 animate-pulse" />
+      </div>
+    </div>
+  );
+}
+
 async function AsyncSidebar() {
   const result = await getUserBotsAction();
   const userBots = result.success && result.data ? result.data : [];
@@ -23,7 +45,7 @@ export default function DashboardLayout({
 }) {
   return (
     <SidebarProvider>
-      <Suspense fallback={<SidebarMenu initialBots={[]} />}>
+      <Suspense fallback={<SidebarFallback />}>
         <AsyncSidebar />
       </Suspense>
       <SidebarInset className="flex-1 flex flex-col min-w-0">
