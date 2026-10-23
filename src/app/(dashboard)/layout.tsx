@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { SidebarMenu } from "@/components/sidebar-menu";
 
 export const metadata: Metadata = {
   title: "ai-worker-team - Dashboard",
@@ -11,8 +13,11 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex-1 flex flex-col w-full">
-      {children}
-    </div>
+    <SidebarProvider>
+      <SidebarMenu />
+      <SidebarInset className="flex-1 flex flex-col min-w-0">
+        {children}
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

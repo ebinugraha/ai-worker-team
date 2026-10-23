@@ -1,11 +1,12 @@
 import { Suspense } from "react";
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { UserButton } from "@clerk/nextjs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ModeToggle } from "@/components/mode-toggle";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { EmptyBots } from "@/components/empty-bots";
+import { BotList } from "@/components/bot-list";
 import { db, bots } from "@/db";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 
 async function ProtectedDashboard() {
   await auth.protect();
@@ -14,7 +15,11 @@ async function ProtectedDashboard() {
   let userBots: Array<typeof bots.$inferSelect> = [];
   if (user?.id) {
     try {
-      userBots = await db.select().from(bots).where(eq(bots.userId, user.id));
+      userBots = await db
+        .select()
+        .from(bots)
+        .where(eq(bots.userId, user.id))
+        .orderBy(desc(bots.createdAt));
     } catch {
       userBots = [];
     }
@@ -24,22 +29,7 @@ async function ProtectedDashboard() {
     return <EmptyBots />;
   }
 
-  return (
-    <div className="w-full max-w-2xl flex flex-col gap-4 py-8">
-      <h2 className="text-xl font-semibold tracking-tight">Your Bots</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {userBots.map((bot) => (
-          <div
-            key={bot.id}
-            className="p-4 rounded-xl border bg-card text-card-foreground shadow-xs flex flex-col gap-1"
-          >
-            <div className="font-semibold text-base">{bot.name}</div>
-            <div className="text-sm text-muted-foreground">{bot.job}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return <BotList initialBots={userBots} />;
 }
 
 function DashboardFallback() {
@@ -57,13 +47,15 @@ function DashboardFallback() {
 export default function Home() {
   return (
     <div className="flex-1 flex flex-col">
-      <header className="border-b border-border/40 px-6 py-3 flex items-center justify-between">
-        <div className="font-semibold text-sm tracking-tight text-foreground">
-          AI Worker Team
+      <header className="border-b border-border/40 px-4 py-2.5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <SidebarTrigger />
+          <div className="font-semibold text-sm tracking-tight text-foreground">
+            AI Worker Team
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <ModeToggle />
-          <UserButton />
         </div>
       </header>
 
