@@ -1,98 +1,77 @@
 import { Suspense } from "react";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { UserButton } from "@clerk/nextjs";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ModeToggle } from "@/components/mode-toggle";
+import { EmptyBots } from "@/components/empty-bots";
+import { db, bots } from "@/db";
+import { eq } from "drizzle-orm";
 
 async function ProtectedDashboard() {
   await auth.protect();
   const user = await currentUser();
 
+  let userBots: Array<typeof bots.$inferSelect> = [];
+  if (user?.id) {
+    try {
+      userBots = await db.select().from(bots).where(eq(bots.userId, user.id));
+    } catch {
+      userBots = [];
+    }
+  }
+
+  if (userBots.length === 0) {
+    return <EmptyBots />;
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>
-            Welcome, {user?.firstName || user?.fullName || "Team Member"}!
-          </CardTitle>
-          <div className="flex items-center gap-3">
-            <Badge variant="default">Authenticated</Badge>
-            <UserButton />
+    <div className="w-full max-w-2xl flex flex-col gap-4 py-8">
+      <h2 className="text-xl font-semibold tracking-tight">Your Bots</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {userBots.map((bot) => (
+          <div
+            key={bot.id}
+            className="p-4 rounded-xl border bg-card text-card-foreground shadow-xs flex flex-col gap-1"
+          >
+            <div className="font-semibold text-base">{bot.name}</div>
+            <div className="text-sm text-muted-foreground">{bot.job}</div>
           </div>
-        </div>
-        <CardDescription>
-          Your session is active and secure.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col gap-3 text-sm">
-          <div>
-            <span className="font-medium text-muted-foreground">User ID: </span>
-            <code className="text-xs bg-muted px-2 py-1 rounded">{user?.id}</code>
-          </div>
-          {user?.primaryEmailAddress && (
-            <div>
-              <span className="font-medium text-muted-foreground">Email: </span>
-              <span>{user.primaryEmailAddress.emailAddress}</span>
-            </div>
-          )}
-          {user?.fullName && (
-            <div>
-              <span className="font-medium text-muted-foreground">Full Name: </span>
-              <span>{user.fullName}</span>
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+        ))}
+      </div>
+    </div>
   );
 }
 
 function DashboardFallback() {
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-6 w-48" />
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-5 w-24" />
-            <Skeleton className="size-8 rounded-full" />
-          </div>
-        </div>
-        <Skeleton className="h-4 w-72 mt-2" />
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-6 w-full" />
-          <Skeleton className="h-6 w-3/4" />
-        </div>
-      </CardContent>
-    </Card>
+    <div className="flex flex-col items-center gap-4 py-12">
+      <Skeleton className="size-10 rounded-full" />
+      <Skeleton className="h-7 w-48 rounded-lg" />
+      <Skeleton className="h-4 w-72 rounded-md" />
+      <Skeleton className="h-4 w-56 rounded-md" />
+      <Skeleton className="h-9 w-36 rounded-xl mt-2" />
+    </div>
   );
 }
 
 export default function Home() {
   return (
-    <div className="container mx-auto py-12 px-4 max-w-3xl">
-      <div className="flex flex-col gap-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">AI Worker Team</h1>
-          <p className="text-muted-foreground mt-1">
-            Protected Dashboard Workspace
-          </p>
+    <div className="flex-1 flex flex-col">
+      <header className="border-b border-border/40 px-6 py-3 flex items-center justify-between">
+        <div className="font-semibold text-sm tracking-tight text-foreground">
+          AI Worker Team
         </div>
+        <div className="flex items-center gap-2">
+          <ModeToggle />
+          <UserButton />
+        </div>
+      </header>
 
+      <main className="flex-1 flex flex-col items-center justify-center p-6">
         <Suspense fallback={<DashboardFallback />}>
           <ProtectedDashboard />
         </Suspense>
-      </div>
+      </main>
     </div>
   );
 }
