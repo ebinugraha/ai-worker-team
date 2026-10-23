@@ -9,3 +9,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 <!-- END:nextjs-agent-rules -->
 ## Aturan push github
 - jangan sesekali melakukan commit, membuat branch, worktree secara otomatis tanpa perintah dari pengguna
+
+## Aturan Database & Drizzle ORM
+- Jangan menjalankan migration (seperti drizzle migration files / migrate scripts) setiap melakukan sinkronisasi atau push ke database. Gunakan schema push langsung (`drizzle-kit push`).
+- Jika ada perubahan skema, kolom, tipe data, atau tabel, jangan ragu untuk menghapus data atau drop/reset kolom/tabel yang konflik karena seluruh data bersifat dummy / tidak penting (hanya untuk main-main).
