@@ -1,6 +1,16 @@
-import { clerkMiddleware } from "@clerk/nextjs/server"
+import { clerkMiddleware } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
-export default clerkMiddleware()
+export default clerkMiddleware(async (auth, req) => {
+  const { userId } = await auth();
+  const { pathname } = req.nextUrl;
+
+  // Jika belum login dan mengakses halaman awal, arahkan langsung ke halaman sign-in
+  if (!userId && pathname === "/") {
+    const signInUrl = new URL("/sign-in", req.url);
+    return NextResponse.redirect(signInUrl);
+  }
+});
 
 export const config = {
   matcher: [
@@ -11,4 +21,4 @@ export const config = {
     // Always run for Clerk-specific frontend API routes
     "/__clerk/(.*)",
   ],
-}
+};
