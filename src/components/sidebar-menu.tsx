@@ -52,6 +52,44 @@ interface SidebarMenuProps extends React.ComponentProps<typeof Sidebar> {
   onCreateGroupChat?: () => void;
 }
 
+const emptySubscribe = () => () => {};
+
+function SidebarUserButton() {
+  const isMounted = React.useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
+
+  if (!isMounted) {
+    return (
+      <div className="flex items-center gap-2.5 p-[1.5px] group-data-[collapsible=icon]:justify-center">
+        <Skeleton className="size-8 rounded-full shrink-0" />
+        <Skeleton className="h-4 w-28 rounded group-data-[collapsible=icon]:hidden" />
+      </div>
+    );
+  }
+
+  return (
+    <UserButton
+      showName
+      appearance={{
+        elements: {
+          rootBox:
+            "flex items-center w-full group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:justify-center",
+          userButtonTrigger:
+            "flex flex-row items-center justify-start gap-2.5 w-full p-[1.5px] rounded-lg bg-transparent hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors focus-visible:ring-1 focus-visible:ring-sidebar-ring outline-none group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:justify-center",
+          userButtonBox:
+            "flex flex-row items-center justify-start gap-2.5 w-full text-left group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:justify-center",
+          userButtonAvatarBox: "size-8 shrink-0 rounded-full order-1",
+          userButtonOuterIdentifier:
+            "text-sm font-medium text-sidebar-foreground text-left truncate max-w-[150px] order-2 group-data-[collapsible=icon]:hidden",
+        },
+      }}
+    />
+  );
+}
+
 function formatRelativeTime(
   dateInput: Date | string | number | null | undefined
 ): string {
@@ -243,22 +281,7 @@ export function SidebarMenu({
                 </div>
               }
             >
-              <UserButton
-                showName
-                appearance={{
-                  elements: {
-                    rootBox:
-                      "flex items-center w-full group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:justify-center",
-                    userButtonTrigger:
-                      "flex flex-row items-center justify-start gap-2.5 w-full p-[1.5px] rounded-lg bg-transparent hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors focus-visible:ring-1 focus-visible:ring-sidebar-ring outline-none group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:justify-center",
-                    userButtonBox:
-                      "flex flex-row items-center justify-start gap-2.5 w-full text-left group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:justify-center",
-                    userButtonAvatarBox: "size-8 shrink-0 rounded-full order-1",
-                    userButtonOuterIdentifier:
-                      "text-sm font-medium text-sidebar-foreground text-left truncate max-w-[150px] order-2 group-data-[collapsible=icon]:hidden",
-                  },
-                }}
-              />
+              <SidebarUserButton />
             </React.Suspense>
           </div>
         </SidebarFooter>

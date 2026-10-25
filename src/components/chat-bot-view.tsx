@@ -2,7 +2,17 @@
 
 import * as React from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import type { UIMessage } from "ai";
+import {
+  useTriggerChatTransport,
+  useLoadTranscript,
+} from "@trigger.dev/sdk/chat/react";
+import type { chatAgent } from "../../trigger/chat";
+import {
+  mintChatAccessToken,
+  startChatSession,
+  loadChatTranscript,
+} from "@/action/chat";
 import {
   MessageScroller,
   MessageScrollerProvider,
@@ -32,27 +42,25 @@ export interface ChatBotViewProps {
   botInstruction?: string;
 }
 
-export function ChatBotView({
+interface ChatBotContentProps extends ChatBotViewProps {
+  initialMessages: UIMessage[];
+  transport: ReturnType<typeof useTriggerChatTransport<typeof chatAgent>>;
+}
+
+function ChatBotContent({
   chatId,
   botName,
-  botInstruction,
-}: ChatBotViewProps) {
+  initialMessages,
+  transport,
+}: ChatBotContentProps) {
   const [input, setInput] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
-  const transport = React.useMemo(() => {
-    return new DefaultChatTransport({
-      api: "/api/chat",
-      body: {
-        chatId,
-        instruction: botInstruction,
-      },
-    });
-  }, [chatId, botInstruction]);
-
   const { messages, sendMessage, status, stop, error } = useChat({
     id: chatId,
+    messages: initialMessages,
     transport,
+    resume: initialMessages.length > 0,
   });
 
   const isLoading = status === "submitted" || status === "streaming";
@@ -69,6 +77,11 @@ export function ChatBotView({
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
+  };
+
+  const handleStop = () => {
+    stop();
+    transport.stopGeneration(chatId);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -223,7 +236,7 @@ export function ChatBotView({
               <button
                 type="submit"
                 disabled={!input.trim() && !isLoading}
-                onClick={isLoading ? () => stop() : () => handleSubmit()}
+                onClick={isLoading ? handleStop : () => handleSubmit()}
                 className={cn(
                   "size-7 rounded-lg flex items-center justify-center transition-colors cursor-pointer",
                   isLoading
@@ -245,6 +258,50 @@ export function ChatBotView({
         </form>
       </div>
     </div>
+  );
+}
+
+export function ChatBotView(props: ChatBotViewProps) {
+  const transport = useTriggerChatTransport<typeof chatAgent>({
+    task: "chat-agent",
+    accessToken: ({ chatId }) => mintChatAccessToken(chatId),
+    startSession: ({ chatId, clientData }) =>
+      startChatSession({ chatId, clientData }),
+  });
+
+  const { messages: transcriptMessages, isLoading } = useLoadTranscript(
+    props.chatId,
+    loadChatTranscript,
+    {
+      transport,
+    }
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-1 flex-col h-full min-h-0 w-full p-4 sm:p-6 md:p-8 justify-between animate-pulse bg-background">
+        <div className="flex flex-col gap-4 w-full pt-2">
+          <div className="flex justify-end w-full">
+            <div className="h-10 w-64 rounded-full bg-neutral-800" />
+          </div>
+          <div className="flex justify-start w-full">
+            <div className="h-10 w-96 rounded-full bg-neutral-800" />
+          </div>
+        </div>
+        <div className="w-full pb-2">
+          <div className="h-24 w-full rounded-2xl bg-neutral-900 border border-neutral-800/80" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <ChatBotContent
+      {...props}
+      key={props.chatId}
+      initialMessages={transcriptMessages}
+      transport={transport}
+    />
   );
 }
 
