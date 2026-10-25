@@ -44,11 +44,11 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <SidebarProvider>
+    <SidebarProvider className="h-svh max-h-svh overflow-hidden">
       <Suspense fallback={<SidebarFallback />}>
         <AsyncSidebar />
       </Suspense>
-      <SidebarInset className="flex-1 flex flex-col min-w-0">
+      <SidebarInset className="flex-1 flex flex-col min-w-0 h-svh max-h-svh overflow-hidden">
         {children}
       </SidebarInset>
     </SidebarProvider>

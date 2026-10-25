@@ -134,6 +134,7 @@ export function DialogEditBot({
       const matchingPreset = PRESETS.find(
         (p) => p.job.toLowerCase() === bot.job.toLowerCase() || p.label.toLowerCase() === bot.job.toLowerCase()
       );
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedPreset(matchingPreset ? matchingPreset.label : null);
       setErrorMessage(null);
     }
