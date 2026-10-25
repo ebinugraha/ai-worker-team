@@ -31,6 +31,7 @@ import {
   TraceCollapsibleContent,
 } from "@/components/ui/trace";
 import { ChatMarkdown } from "@/components/chat-markdown";
+import { ChatToolView, isToolPart } from "@/components/chat-tool-view";
 import { cn } from "@/lib/utils";
 import { PlusIcon, CornerDownLeftIcon, SquareIcon, BrainIcon } from "lucide-react";
 
@@ -122,16 +123,16 @@ function ChatBotContent({
                             isUser ? "justify-end" : "justify-start"
                           )}
                         >
-                          <div
-                            className={cn(
-                              "w-fit max-w-[85%] sm:max-w-[75%] px-5 py-2.5 text-sm leading-relaxed transition-all shadow-xs",
-                              "bg-neutral-800 text-neutral-100",
-                              "rounded-full sm:rounded-[22px]"
-                            )}
-                          >
-                            {message.parts.map((part, index) => {
-                              if (part.type === "text") {
-                                if (isUser) {
+                          {isUser ? (
+                            <div
+                              className={cn(
+                                "w-fit max-w-[85%] sm:max-w-[75%] px-5 py-2.5 text-sm leading-relaxed transition-all shadow-xs",
+                                "bg-neutral-800 text-neutral-100",
+                                "rounded-full sm:rounded-[22px]"
+                              )}
+                            >
+                              {message.parts.map((part, index) => {
+                                if (part.type === "text") {
                                   return (
                                     <div
                                       key={index}
@@ -141,45 +142,68 @@ function ChatBotContent({
                                     </div>
                                   );
                                 }
-                                return (
-                                  <ChatMarkdown
-                                    key={index}
-                                    content={part.text}
-                                  />
-                                );
-                              }
-                              if (part.type === "reasoning") {
-                                return (
-                                  <Trace key={index} className="my-1">
-                                    <TraceCollapsible defaultOpen={false}>
-                                      <TraceCollapsibleTrigger>
-                                        <TraceLine
-                                          status={
-                                            status === "streaming"
-                                              ? "running"
-                                              : undefined
-                                          }
-                                        >
-                                          <TraceIcon>
-                                            <BrainIcon className="size-3.5" />
-                                          </TraceIcon>
-                                          <TraceTitle>
-                                            {status === "streaming"
-                                              ? "Thinking..."
-                                              : "Thought"}
-                                          </TraceTitle>
-                                        </TraceLine>
-                                      </TraceCollapsibleTrigger>
-                                      <TraceCollapsibleContent className="mt-1 pl-5 text-xs text-muted-foreground whitespace-pre-wrap border-l-2 border-border/50 ml-2">
-                                        {part.text}
-                                      </TraceCollapsibleContent>
-                                    </TraceCollapsible>
-                                  </Trace>
-                                );
-                              }
-                              return null;
-                            })}
-                          </div>
+                                return null;
+                              })}
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-2.5 w-full max-w-[92%] sm:max-w-[85%] items-start">
+                              {message.parts.map((part, index) => {
+                                if (part.type === "text") {
+                                  return (
+                                    <div
+                                      key={index}
+                                      className={cn(
+                                        "w-fit max-w-full px-5 py-2.5 text-sm leading-relaxed transition-all shadow-xs",
+                                        "bg-neutral-800 text-neutral-100",
+                                        "rounded-2xl sm:rounded-[22px]"
+                                      )}
+                                    >
+                                      <ChatMarkdown content={part.text} />
+                                    </div>
+                                  );
+                                }
+                                if (part.type === "reasoning") {
+                                  return (
+                                    <Trace key={index} className="my-1">
+                                      <TraceCollapsible defaultOpen={false}>
+                                        <TraceCollapsibleTrigger>
+                                          <TraceLine
+                                            status={
+                                              status === "streaming"
+                                                ? "running"
+                                                : undefined
+                                            }
+                                          >
+                                            <TraceIcon>
+                                              <BrainIcon className="size-3.5" />
+                                            </TraceIcon>
+                                            <TraceTitle>
+                                              {status === "streaming"
+                                                ? "Thinking..."
+                                                : "Thought"}
+                                            </TraceTitle>
+                                          </TraceLine>
+                                        </TraceCollapsibleTrigger>
+                                        <TraceCollapsibleContent className="mt-1 pl-5 text-xs text-muted-foreground whitespace-pre-wrap border-l-2 border-border/50 ml-2">
+                                          {part.text}
+                                        </TraceCollapsibleContent>
+                                      </TraceCollapsible>
+                                    </Trace>
+                                  );
+                                }
+                                if (isToolPart(part)) {
+                                  return (
+                                    <ChatToolView
+                                      key={index}
+                                      part={part}
+                                      isStreaming={status === "streaming"}
+                                    />
+                                  );
+                                }
+                                return null;
+                              })}
+                            </div>
+                          )}
                         </div>
                       </MessageScrollerItem>
                     );

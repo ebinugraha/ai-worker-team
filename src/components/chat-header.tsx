@@ -14,6 +14,8 @@ export interface ChatHeaderProps extends React.ComponentProps<"header"> {
   avatar: string;
   job?: string;
   instruction?: string | null;
+  isMonitorOpen?: boolean;
+  onToggleMonitor?: () => void;
 }
 
 export function ChatHeader({
@@ -22,6 +24,8 @@ export function ChatHeader({
   avatar,
   job = "",
   instruction = "",
+  isMonitorOpen = false,
+  onToggleMonitor,
   className,
   ...props
 }: ChatHeaderProps) {
@@ -67,15 +71,20 @@ export function ChatHeader({
           </span>
         </button>
 
-        {/* Right section: Monitor Icon Button (not yet functional) */}
+        {/* Right section: Monitor Icon Button */}
         <div className="flex items-center gap-1">
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="size-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 cursor-pointer"
-            title="Monitor"
+            onClick={onToggleMonitor}
+            className={cn(
+              "size-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 cursor-pointer",
+              isMonitorOpen && "bg-muted text-foreground"
+            )}
+            title={isMonitorOpen ? "Close monitor" : "Open monitor"}
             aria-label="Monitor view"
+            aria-pressed={isMonitorOpen}
           >
             <MonitorIcon className="size-4" />
           </Button>

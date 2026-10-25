@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { db, bots } from "@/db";
 import { eq, desc, and } from "drizzle-orm";
+import { createBotSandbox, deleteBotSandbox, getSandboxVncUrl } from "@/lib/daytona";
 
 export interface CreateBotInput {
   name: string;
@@ -49,6 +50,13 @@ export async function createBotAction(
       return { success: false, error: "Bot job description is required." };
     }
 
+    let sandboxId: string | null = null;
+    try {
+      sandboxId = await createBotSandbox(name.trim());
+    } catch (daytonaErr) {
+      console.error("Failed to create Daytona sandbox for bot:", daytonaErr);
+    }
+
     const newBot = {
       id: `bot_${crypto.randomUUID()}`,
       userId,
@@ -56,7 +64,7 @@ export async function createBotAction(
       job: job.trim(),
       instruction: instructions?.trim() || null,
       avatar: avatar?.trim() || "bot-ada",
-      sandboxId: null,
+      sandboxId,
     };
 
     const [inserted] = await db.insert(bots).values(newBot).returning();
@@ -243,6 +251,10 @@ export async function deleteBotAction(
       };
     }
 
+    if (deleted.sandboxId) {
+      await deleteBotSandbox(deleted.sandboxId);
+    }
+
     revalidatePath("/");
     revalidatePath(`/chat/${botId}`);
 
@@ -253,6 +265,37 @@ export async function deleteBotAction(
   } catch (err: unknown) {
     const message =
       err instanceof Error ? err.message : "Failed to delete bot";
+    return {
+      success: false,
+      error: message,
+    };
+  }
+}
+
+/**
+ * Returns a signed VNC URL for a bot's Daytona sandbox.
+ */
+export async function getBotVncUrlAction(
+  sandboxId: string
+): Promise<ActionResult<{ vncUrl: string }>> {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    if (!sandboxId) {
+      return { success: false, error: "Sandbox ID is required" };
+    }
+
+    const vncUrl = await getSandboxVncUrl(sandboxId);
+    return {
+      success: true,
+      data: { vncUrl },
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to get VNC URL";
+    console.error(`Failed to get VNC URL for sandbox ${sandboxId}:`, err);
     return {
       success: false,
       error: message,
