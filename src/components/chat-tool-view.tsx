@@ -27,6 +27,7 @@ import {
   RotateCcwIcon,
   DownloadIcon,
   XIcon,
+  ArrowRightLeftIcon,
 } from "lucide-react";
 import {
   Trace,
@@ -46,6 +47,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { SeedAvatar } from "@/components/seed-avatar";
 import { cn } from "@/lib/utils";
 
 export interface ToolPartPayload {
@@ -931,6 +933,101 @@ function GetDisplayInfoToolView({
   );
 }
 
+export interface HandoffInput {
+  targetBotName?: string;
+  reason?: string;
+}
+
+export interface HandoffOutput {
+  success?: boolean;
+  handedOff?: boolean;
+  targetBot?: {
+    id: string;
+    name: string;
+    avatar?: string;
+    job: string;
+  };
+  reason?: string;
+  message?: string;
+  error?: string;
+}
+
+function HandoffToolView({
+  input,
+  output,
+  state,
+}: {
+  input?: HandoffInput;
+  output?: HandoffOutput;
+  state: string;
+}) {
+  const isRunning = state === "input-streaming" || state === "input-available";
+  const hasError = state === "output-error" || output?.success === false;
+  const targetName =
+    output?.targetBot?.name || input?.targetBotName || "Rekan Tim";
+  const targetJob = output?.targetBot?.job;
+  const targetAvatar = output?.targetBot?.avatar;
+  const reason = output?.reason || input?.reason;
+
+  return (
+    <div className="my-2.5 w-full rounded-xl border border-blue-500/30 bg-blue-950/20 p-3 shadow-xs">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="size-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+            {isRunning ? (
+              <Loader2Icon className="size-3.5 animate-spin" />
+            ) : (
+              <ArrowRightLeftIcon className="size-3.5" />
+            )}
+          </div>
+          <span className="text-xs font-medium text-neutral-200 truncate">
+            {isRunning
+              ? `Mengalihkan tugas ke ${targetName}...`
+              : hasError
+              ? `Pengalihan tugas gagal`
+              : `Tugas dialihkan ke ${targetName}`}
+          </span>
+        </div>
+
+        {targetName && (
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 shrink-0">
+            {targetAvatar && (
+              <SeedAvatar
+                seed={targetAvatar}
+                size={14}
+                className="rounded-full shrink-0"
+              />
+            )}
+            <span className="text-[11px] font-medium text-blue-300">
+              {targetName}
+            </span>
+            {targetJob && (
+              <span className="text-[10px] text-blue-400/80 hidden sm:inline">
+                ({targetJob})
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {reason && (
+        <div className="mt-2 text-xs text-neutral-300 bg-neutral-900/70 rounded-lg p-2.5 border border-neutral-800/70">
+          <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block mb-0.5">
+            Alasan Pengalihan:
+          </span>
+          <p className="leading-relaxed text-neutral-200">{reason}</p>
+        </div>
+      )}
+
+      {output?.error && (
+        <p className="mt-1.5 text-xs text-red-400 font-mono">
+          {output.error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function GenericToolView({
   toolName,
   input,
@@ -994,6 +1091,14 @@ export function ChatToolView({ part }: ChatToolViewProps) {
   const state = part.state || "";
 
   switch (toolName) {
+    case "handoff":
+      return (
+        <HandoffToolView
+          input={input as HandoffInput}
+          output={output as HandoffOutput}
+          state={state}
+        />
+      );
     case "bash":
       return (
         <BashToolView

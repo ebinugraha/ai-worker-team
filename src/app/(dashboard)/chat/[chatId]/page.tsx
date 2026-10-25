@@ -1,5 +1,6 @@
 import { Suspense } from "react";
-import { getBotByIdAction } from "@/action/bot";
+import { getChatWithMembersAction } from "@/action/chat";
+import { getUserBotsAction } from "@/action/bot";
 import { ChatBotView } from "@/components/chat-bot-view";
 import { ChatHeaderSkeleton } from "@/components/chat-header";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,25 +33,43 @@ function ChatPageSkeleton() {
 
 async function ChatContent({ params }: ChatPageProps) {
   const { chatId } = await params;
-  const result = await getBotByIdAction(chatId);
-  const bot = result.success && result.data ? result.data : null;
+  const [result, botsResult] = await Promise.all([
+    getChatWithMembersAction(chatId),
+    getUserBotsAction(),
+  ]);
+  const chatDetails = result.success && result.data ? result.data : null;
+  const availableBots =
+    botsResult.success && botsResult.data
+      ? botsResult.data.map((b) => ({
+          id: b.id,
+          name: b.name,
+          avatar: b.avatar,
+          job: b.job,
+        }))
+      : [];
 
   return (
     <ChatResizableLayout
       botId={chatId}
-      botName={bot?.name ?? "Chatbot"}
-      botAvatar={bot?.avatar ?? "bot-default"}
-      botJob={bot?.job ?? ""}
-      botInstruction={bot?.instruction ?? ""}
-      sandboxId={bot?.sandboxId ?? null}
+      botName={chatDetails?.name ?? "Chatbot"}
+      botAvatar={chatDetails?.avatar ?? "bot-default"}
+      isGroup={chatDetails?.isGroup ?? false}
+      avatars={chatDetails?.avatars ?? []}
+      members={chatDetails?.members ?? []}
+      availableBots={availableBots}
+      botJob={chatDetails?.job ?? ""}
+      botInstruction={chatDetails?.instruction ?? ""}
+      sandboxId={chatDetails?.sandboxId ?? null}
     >
       <ChatBotView
         key={chatId}
         chatId={chatId}
-        botName={bot?.name ?? "Chatbot"}
-        botAvatar={bot?.avatar ?? "bot-default"}
-        botJob={bot?.job ?? ""}
-        botInstruction={bot?.instruction ?? ""}
+        botName={chatDetails?.name ?? "Chatbot"}
+        botAvatar={chatDetails?.avatar ?? "bot-default"}
+        isGroup={chatDetails?.isGroup ?? false}
+        memberBots={chatDetails?.members ?? []}
+        botJob={chatDetails?.job ?? ""}
+        botInstruction={chatDetails?.instruction ?? ""}
       />
     </ChatResizableLayout>
   );

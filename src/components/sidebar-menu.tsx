@@ -20,7 +20,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SeedAvatar } from "@/components/seed-avatar";
+import { GroupChatAvatar } from "@/components/group-chat-avatar";
 import { DialogCreateBot } from "@/components/dialog-create-bot";
+import { DialogCreateGroupChat } from "@/components/dialog-create-group-chat";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -47,10 +49,49 @@ export interface BotItem {
   createdAt: Date | string | null;
 }
 
-interface SidebarMenuProps extends React.ComponentProps<typeof Sidebar> {
+export interface GroupChatItem {
+  id: string;
+  name: string;
+  avatars: string[];
+  members: Array<{
+    id: string;
+    name: string;
+    avatar: string;
+    job?: string;
+    instruction?: string | null;
+  }>;
+  createdAt: Date | string | null;
+}
+
+export interface SidebarMenuProps extends React.ComponentProps<typeof Sidebar> {
   initialBots?: BotItem[];
+  initialGroupChats?: GroupChatItem[];
   onCreateGroupChat?: () => void;
 }
+
+type ConversationItem =
+  | {
+      isGroup: false;
+      id: string;
+      name: string;
+      job: string;
+      avatar: string;
+      instruction?: string | null;
+      createdAt: Date | string | null;
+    }
+  | {
+      isGroup: true;
+      id: string;
+      name: string;
+      avatars: string[];
+      members: Array<{
+        id: string;
+        name: string;
+        avatar: string;
+        job?: string;
+      }>;
+      createdAt: Date | string | null;
+    };
 
 const emptySubscribe = () => () => {};
 
@@ -107,13 +148,28 @@ function formatRelativeTime(
 
 export function SidebarMenu({
   initialBots = [],
+  initialGroupChats = [],
   onCreateGroupChat,
   ...props
 }: SidebarMenuProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [openCreateBot, setOpenCreateBot] = React.useState(false);
+  const [openCreateGroupChat, setOpenCreateGroupChat] = React.useState(false);
   const [openCommand, setOpenCommand] = React.useState(false);
+
+  // Combine bots and group chats in chronological order
+  const conversations = React.useMemo(() => {
+    const items: ConversationItem[] = [
+      ...initialBots.map((b) => ({ ...b, isGroup: false as const })),
+      ...initialGroupChats.map((g) => ({ ...g, isGroup: true as const })),
+    ];
+    return items.sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return timeB - timeA;
+    });
+  }, [initialBots, initialGroupChats]);
 
   // Keyboard shortcut for Cmd+K / Ctrl+K
   React.useEffect(() => {
@@ -169,11 +225,17 @@ export function SidebarMenu({
                   </DropdownMenuItem>
 
                   <DropdownMenuItem
-                    onClick={onCreateGroupChat}
+                    onClick={() => {
+                      if (onCreateGroupChat) {
+                        onCreateGroupChat();
+                      } else {
+                        setOpenCreateGroupChat(true);
+                      }
+                    }}
                     className="flex items-center gap-2.5 px-3 py-2 text-sm font-medium rounded-lg cursor-pointer"
                   >
                     <UsersIcon className="size-4" data-icon="inline-start" />
-                    <span>Create group chat</span>
+                    <span>Create a groupchat</span>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
               </DropdownMenuContent>
@@ -202,25 +264,29 @@ export function SidebarMenu({
           </button>
         </SidebarHeader>
 
-        {/* Main Content Area: Bot List Items using shadcn sidebar primitives */}
+        {/* Main Content Area: Conversations (Bots + Group chats) */}
         <SidebarContent className="px-2 py-1 overflow-y-auto group-data-[collapsible=icon]:px-1">
           <SidebarGroup className="p-0">
             <SidebarGroupContent>
               <UiSidebarMenu className="gap-1.5 group-data-[collapsible=icon]:gap-2 group-data-[collapsible=icon]:items-center">
-                {initialBots.map((bot) => {
-                  const chatPath = `/chat/${bot.id}`;
+                {conversations.map((item) => {
+                  const chatPath = `/chat/${item.id}`;
                   const isActive = pathname === chatPath;
-                  const relativeTime = formatRelativeTime(bot.createdAt);
+                  const relativeTime = formatRelativeTime(item.createdAt);
 
                   return (
                     <SidebarMenuItem
-                      key={bot.id}
+                      key={item.id}
                       className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center"
                     >
                       <SidebarMenuButton
                         size="lg"
                         isActive={isActive}
-                        tooltip={`${bot.name} • ${bot.job}`}
+                        tooltip={
+                          item.isGroup
+                            ? `${item.name} (${item.members.map((m) => m.name).join(", ")})`
+                            : `${item.name} • ${item.job}`
+                        }
                         onClick={() => {
                           router.push(chatPath);
                         }}
@@ -232,21 +298,25 @@ export function SidebarMenu({
                           "group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-xl"
                         )}
                       >
-                        {/* Bot Avatar */}
+                        {/* Avatar: SeedAvatar for direct bot, GroupChatAvatar for group */}
                         <div
                           className={cn(
                             "size-9 rounded-xl overflow-hidden shrink-0 flex items-center justify-center",
                             isActive ? "bg-muted/40" : "bg-muted/30"
                           )}
                         >
-                          <SeedAvatar seed={bot.avatar} size={36} />
+                          {item.isGroup ? (
+                            <GroupChatAvatar avatars={item.avatars} size={36} />
+                          ) : (
+                            <SeedAvatar seed={item.avatar} size={36} />
+                          )}
                         </div>
 
-                        {/* Bot Details (Name + Relative Time, Instruction/Job Preview) */}
+                        {/* Details (Name + Relative Time, Subtitle) */}
                         <div className="flex flex-col min-w-0 flex-1 leading-none group-data-[collapsible=icon]:hidden">
                           <div className="flex items-center justify-between gap-1 w-full">
                             <span className="font-semibold text-sm text-foreground truncate">
-                              {bot.name}
+                              {item.name}
                             </span>
                             {relativeTime && (
                               <span
@@ -258,7 +328,9 @@ export function SidebarMenu({
                             )}
                           </div>
                           <span className="text-xs text-muted-foreground/80 truncate block leading-tight mt-1">
-                            {bot.instruction || bot.job}
+                            {item.isGroup
+                              ? item.members.map((m) => m.name).join(", ")
+                              : item.instruction || item.job}
                           </span>
                         </div>
                       </SidebarMenuButton>
@@ -294,40 +366,50 @@ export function SidebarMenu({
       <CommandDialog
         open={openCommand}
         onOpenChange={setOpenCommand}
-        title="Search Bots"
-        description="Search through your bots by name, job, or instructions"
+        title="Search Conversations"
+        description="Search through your bots and group chats"
       >
-        <CommandInput placeholder="Search bots..." />
+        <CommandInput placeholder="Search bots and group chats..." />
         <CommandList>
-          <CommandEmpty>No bots found.</CommandEmpty>
-          <CommandGroup heading="Bots">
-            {initialBots.map((bot) => (
+          <CommandEmpty>No conversations found.</CommandEmpty>
+          <CommandGroup heading="Conversations">
+            {conversations.map((item) => (
               <CommandItem
-                key={bot.id}
-                value={`${bot.name} ${bot.job} ${bot.instruction || ""}`}
+                key={item.id}
+                value={
+                  item.isGroup
+                    ? `${item.name} ${item.members.map((m) => m.name).join(" ")}`
+                    : `${item.name} ${item.job} ${item.instruction || ""}`
+                }
                 onSelect={() => {
-                  router.push(`/chat/${bot.id}`);
+                  router.push(`/chat/${item.id}`);
                   setOpenCommand(false);
                 }}
                 className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer"
               >
                 <div className="size-8 rounded-lg overflow-hidden shrink-0 flex items-center justify-center bg-muted/30">
-                  <SeedAvatar seed={bot.avatar} size={32} />
+                  {item.isGroup ? (
+                    <GroupChatAvatar avatars={item.avatars} size={32} />
+                  ) : (
+                    <SeedAvatar seed={item.avatar} size={32} />
+                  )}
                 </div>
                 <div className="flex flex-col min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium text-sm text-foreground truncate">
-                      {bot.name}
+                      {item.name}
                     </span>
                     <span
                       suppressHydrationWarning
                       className="text-[11px] text-muted-foreground shrink-0 font-normal"
                     >
-                      {formatRelativeTime(bot.createdAt)}
+                      {formatRelativeTime(item.createdAt)}
                     </span>
                   </div>
                   <span className="text-xs text-muted-foreground truncate">
-                    {bot.instruction || bot.job}
+                    {item.isGroup
+                      ? item.members.map((m) => m.name).join(", ")
+                      : item.instruction || item.job}
                   </span>
                 </div>
               </CommandItem>
@@ -338,6 +420,13 @@ export function SidebarMenu({
 
       {/* Create Bot Dialog */}
       <DialogCreateBot open={openCreateBot} onOpenChange={setOpenCreateBot} />
+
+      {/* Create Group Chat Dialog */}
+      <DialogCreateGroupChat
+        open={openCreateGroupChat}
+        onOpenChange={setOpenCreateGroupChat}
+        availableBots={initialBots}
+      />
     </>
   );
 }

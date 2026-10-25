@@ -7,6 +7,9 @@ import {
   defaultStorage,
   type ChatStartSessionParams,
 } from "@trigger.dev/sdk/ai";
+import { revalidatePath } from "next/cache";
+import { db, chats, chatMembers, bots } from "@/db";
+import { eq, and, desc } from "drizzle-orm";
 import type { chatAgent } from "../../trigger/chat";
 
 const baseStartSession =
@@ -53,4 +56,323 @@ export async function loadChatTranscript(params: {
   }
 
   return baseLoadTranscript(params);
+}
+
+export interface ChatMemberBot {
+  id: string;
+  name: string;
+  avatar: string;
+  job: string;
+  instruction: string | null;
+  sandboxId: string | null;
+}
+
+export interface ChatDetails {
+  id: string;
+  isGroup: boolean;
+  name: string;
+  avatar?: string;
+  avatars?: string[];
+  members: ChatMemberBot[];
+  job?: string;
+  instruction?: string | null;
+  sandboxId?: string | null;
+}
+
+export async function createGroupChatAction(payload: {
+  name: string;
+  botIds: string[];
+}): Promise<{
+  success: boolean;
+  data?: { chatId: string; name: string };
+  error?: string;
+}> {
+  const { userId } = await clerkAuth();
+  if (!userId) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const trimmedName = payload.name?.trim();
+  if (!trimmedName) {
+    return { success: false, error: "Nama obrolan grup wajib diisi" };
+  }
+
+  const botIds = Array.isArray(payload.botIds)
+    ? payload.botIds.filter(Boolean)
+    : [];
+  if (botIds.length < 2) {
+    return {
+      success: false,
+      error: "Pilih minimal 2 bot untuk membuat obrolan grup",
+    };
+  }
+
+  try {
+    const chatId = `group_${crypto.randomUUID()}`;
+
+    // Insert group chat
+    await db.insert(chats).values({
+      id: chatId,
+      userId,
+      kind: "group",
+      name: trimmedName,
+    });
+
+    // Insert members
+    const members = botIds.map((botId) => ({
+      chatId,
+      botId,
+    }));
+    await db.insert(chatMembers).values(members);
+
+    revalidatePath("/", "layout");
+    revalidatePath(`/chat/${chatId}`);
+
+    return {
+      success: true,
+      data: { chatId, name: trimmedName },
+    };
+  } catch (err) {
+    console.error("Failed to create group chat:", err);
+    return { success: false, error: "Gagal membuat obrolan grup" };
+  }
+}
+
+export async function updateGroupChatAction(payload: {
+  chatId: string;
+  name: string;
+  botIds: string[];
+}): Promise<{
+  success: boolean;
+  data?: { chatId: string; name: string; botIds: string[] };
+  error?: string;
+}> {
+  const { userId } = await clerkAuth();
+  if (!userId) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const { chatId, name, botIds } = payload;
+  const trimmedName = name?.trim();
+  if (!trimmedName) {
+    return { success: false, error: "Nama obrolan grup wajib diisi" };
+  }
+
+  const validBotIds = Array.isArray(botIds) ? botIds.filter(Boolean) : [];
+  if (validBotIds.length < 2) {
+    return {
+      success: false,
+      error: "Pilih minimal 2 bot untuk obrolan grup",
+    };
+  }
+
+  try {
+    const [existingChat] = await db
+      .select()
+      .from(chats)
+      .where(
+        and(eq(chats.id, chatId), eq(chats.userId, userId), eq(chats.kind, "group"))
+      )
+      .limit(1);
+
+    if (!existingChat) {
+      return {
+        success: false,
+        error: "Obrolan grup tidak ditemukan atau tidak memiliki akses",
+      };
+    }
+
+    // 1. Update group chat name
+    await db
+      .update(chats)
+      .set({ name: trimmedName })
+      .where(eq(chats.id, chatId));
+
+    // 2. Replace members
+    await db.delete(chatMembers).where(eq(chatMembers.chatId, chatId));
+
+    const newMembers = validBotIds.map((botId) => ({
+      chatId,
+      botId,
+    }));
+    await db.insert(chatMembers).values(newMembers);
+
+    revalidatePath("/", "layout");
+    revalidatePath(`/chat/${chatId}`);
+
+    return {
+      success: true,
+      data: { chatId, name: trimmedName, botIds: validBotIds },
+    };
+  } catch (err) {
+    console.error("Failed to update group chat:", err);
+    return { success: false, error: "Gagal memperbarui obrolan grup" };
+  }
+}
+
+export async function deleteGroupChatAction(chatId: string): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  const { userId } = await clerkAuth();
+  if (!userId) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  try {
+    const [existingChat] = await db
+      .select()
+      .from(chats)
+      .where(and(eq(chats.id, chatId), eq(chats.userId, userId)))
+      .limit(1);
+
+    if (!existingChat) {
+      return {
+        success: false,
+        error: "Obrolan grup tidak ditemukan atau tidak memiliki akses",
+      };
+    }
+
+    await db.delete(chatMembers).where(eq(chatMembers.chatId, chatId));
+    await db.delete(chats).where(eq(chats.id, chatId));
+
+    revalidatePath("/", "layout");
+    revalidatePath("/");
+
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to delete group chat:", err);
+    return { success: false, error: "Gagal menghapus obrolan grup" };
+  }
+}
+
+export async function getChatWithMembersAction(
+  chatId: string
+): Promise<{ success: boolean; data?: ChatDetails; error?: string }> {
+  try {
+    // 1. Check if chatId exists in chats table
+    const [existingChat] = await db
+      .select()
+      .from(chats)
+      .where(eq(chats.id, chatId))
+      .limit(1);
+
+    if (existingChat && existingChat.kind === "group") {
+      const memberRows = await db
+        .select({
+          id: bots.id,
+          name: bots.name,
+          avatar: bots.avatar,
+          job: bots.job,
+          instruction: bots.instruction,
+          sandboxId: bots.sandboxId,
+        })
+        .from(chatMembers)
+        .innerJoin(bots, eq(chatMembers.botId, bots.id))
+        .where(eq(chatMembers.chatId, chatId));
+
+      return {
+        success: true,
+        data: {
+          id: existingChat.id,
+          isGroup: true,
+          name: existingChat.name || "Group Chat",
+          avatars: memberRows.map((m) => m.avatar),
+          members: memberRows,
+        },
+      };
+    }
+
+    // 2. Check if chatId is a direct bot ID
+    const [bot] = await db
+      .select({
+        id: bots.id,
+        name: bots.name,
+        avatar: bots.avatar,
+        job: bots.job,
+        instruction: bots.instruction,
+        sandboxId: bots.sandboxId,
+      })
+      .from(bots)
+      .where(eq(bots.id, chatId))
+      .limit(1);
+
+    if (bot) {
+      return {
+        success: true,
+        data: {
+          id: bot.id,
+          isGroup: false,
+          name: bot.name,
+          avatar: bot.avatar,
+          job: bot.job,
+          instruction: bot.instruction,
+          sandboxId: bot.sandboxId,
+          members: [bot],
+        },
+      };
+    }
+
+    return { success: false, error: "Obrolan tidak ditemukan" };
+  } catch (err) {
+    console.error("Failed to fetch chat details:", err);
+    return { success: false, error: "Gagal memuat detail obrolan" };
+  }
+}
+
+export interface GroupChatItem {
+  id: string;
+  name: string;
+  avatars: string[];
+  members: ChatMemberBot[];
+  createdAt: Date | string | null;
+}
+
+export async function getUserGroupChatsAction(): Promise<{
+  success: boolean;
+  data?: GroupChatItem[];
+  error?: string;
+}> {
+  const { userId } = await clerkAuth();
+  if (!userId) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  try {
+    const groupChats = await db
+      .select()
+      .from(chats)
+      .where(and(eq(chats.userId, userId), eq(chats.kind, "group")))
+      .orderBy(desc(chats.createdAt));
+
+    const results: GroupChatItem[] = [];
+
+    for (const chatItem of groupChats) {
+      const memberRows = await db
+        .select({
+          id: bots.id,
+          name: bots.name,
+          avatar: bots.avatar,
+          job: bots.job,
+          instruction: bots.instruction,
+          sandboxId: bots.sandboxId,
+        })
+        .from(chatMembers)
+        .innerJoin(bots, eq(chatMembers.botId, bots.id))
+        .where(eq(chatMembers.chatId, chatItem.id));
+
+      results.push({
+        id: chatItem.id,
+        name: chatItem.name || "Group Chat",
+        avatars: memberRows.map((m) => m.avatar),
+        members: memberRows,
+        createdAt: chatItem.createdAt,
+      });
+    }
+
+    return { success: true, data: results };
+  } catch (err) {
+    console.error("Failed to fetch user group chats:", err);
+    return { success: false, error: "Gagal memuat daftar obrolan grup" };
+  }
 }

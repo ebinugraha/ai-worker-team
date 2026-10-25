@@ -6,12 +6,106 @@ import { getDaytonaClient } from "@/lib/daytona";
 import { db, bots } from "@/db";
 import { eq } from "drizzle-orm";
 
-export interface SandboxContext {
-  chatId: string;
+export interface MemberBotInfo {
+  id: string;
+  name: string;
+  avatar: string;
+  job: string;
+  instruction?: string | null;
   sandboxId?: string | null;
 }
 
+export interface SandboxContext {
+  chatId: string;
+  sandboxId?: string | null;
+  isGroup?: boolean;
+  memberBots?: MemberBotInfo[];
+}
+
 export const sandboxContextStorage = new AsyncLocalStorage<SandboxContext>();
+
+export interface HandoffInput {
+  targetBotName: string;
+  reason: string;
+}
+
+export interface HandoffOutput {
+  success: boolean;
+  handedOff?: boolean;
+  targetBot?: {
+    id: string;
+    name: string;
+    avatar?: string;
+    job: string;
+  };
+  reason?: string;
+  message?: string;
+  error?: string;
+}
+
+export const handoffTool = tool({
+  description:
+    "Hand off (delegate) the conversation or task to another teammate bot in this group chat if you determine that the user's prompt or request is better suited for their specific expertise, job role, or instructions.",
+  inputSchema: z.object({
+    targetBotName: z
+      .string()
+      .describe(
+        "Name of the teammate bot in this group chat to hand off the task to"
+      ),
+    reason: z
+      .string()
+      .describe(
+        "Clear explanation of why the target bot is better suited to handle the user's request"
+      ),
+  }),
+  execute: async ({ targetBotName, reason }): Promise<HandoffOutput> => {
+    const store = sandboxContextStorage.getStore();
+    const members = store?.memberBots || [];
+
+    if (!store?.isGroup || members.length <= 1) {
+      return {
+        success: false,
+        error:
+          "Handoff is only available in group chats with multiple member bots.",
+      };
+    }
+
+    const cleanTarget = targetBotName.trim().toLowerCase();
+    const targetBot = members.find((m) => {
+      const mName = m.name.toLowerCase();
+      const mId = m.id.toLowerCase();
+      return (
+        mName === cleanTarget ||
+        mId === cleanTarget ||
+        mName.includes(cleanTarget) ||
+        cleanTarget.includes(mName)
+      );
+    });
+
+    if (!targetBot) {
+      const availableList = members
+        .map((m) => `${m.name} (${m.job})`)
+        .join(", ");
+      return {
+        success: false,
+        error: `Bot "${targetBotName}" not found in this group chat. Available teammate bots: ${availableList}`,
+      };
+    }
+
+    return {
+      success: true,
+      handedOff: true,
+      targetBot: {
+        id: targetBot.id,
+        name: targetBot.name,
+        avatar: targetBot.avatar,
+        job: targetBot.job,
+      },
+      reason,
+      message: `Tugas berhasil dialihkan ke ${targetBot.name} (${targetBot.job}). Alasan: ${reason}.`,
+    };
+  },
+});
 
 export async function resolveSandboxForChat(chatId?: string) {
   const store = sandboxContextStorage.getStore();
@@ -36,7 +130,11 @@ export async function resolveSandboxForChat(chatId?: string) {
   }
 
   const daytona = getDaytonaClient();
-  return await daytona.get(sandboxId);
+  const sandbox = await daytona.get(sandboxId);
+  if (sandbox.state === "stopped") {
+    await sandbox.start();
+  }
+  return sandbox;
 }
 
 export const bashTool = tool({
@@ -76,14 +174,31 @@ export const bashTool = tool({
 
 export const readFileTool = tool({
   description:
-    "Read the text content of a file located in the sandbox filesystem.",
+    "Read the text content of a file located in the sandbox filesystem, including 'MEMORY.md' to retrieve persistent notes and recalled facts from past 1:1 or group chats.",
   inputSchema: z.object({
-    path: z.string().describe("Relative or absolute file path to read"),
+    path: z.string().describe("Relative or absolute file path to read (e.g. 'MEMORY.md')"),
   }),
   execute: async ({ path }) => {
     try {
       const sandbox = await resolveSandboxForChat();
-      const buffer = await sandbox.fs.downloadFile(path);
+      let buffer: Buffer;
+      try {
+        buffer = await sandbox.fs.downloadFile(path);
+      } catch (dlErr) {
+        // If MEMORY.md does not exist yet, initialize it gracefully
+        const cleanPath = path.trim().replace(/^\.\//, "");
+        if (cleanPath === "MEMORY.md") {
+          const empty = Buffer.from("");
+          await sandbox.fs.uploadFile(empty, "MEMORY.md");
+          return {
+            success: true,
+            path,
+            content: "",
+            size: 0,
+          };
+        }
+        throw dlErr;
+      }
       const rawContent = buffer.toString("utf-8");
       const content =
         rawContent.length > 25000
@@ -107,9 +222,9 @@ export const readFileTool = tool({
 
 export const writeFileTool = tool({
   description:
-    "Write or overwrite text content to a file in the sandbox filesystem.",
+    "Write or overwrite text content to a file in the sandbox filesystem, including 'MEMORY.md' to save persistent memories, user preferences, facts, or instructions for future recall.",
   inputSchema: z.object({
-    path: z.string().describe("Target file path to write to"),
+    path: z.string().describe("Target file path to write to (e.g. 'MEMORY.md')"),
     content: z.string().describe("Full text content to write into the file"),
   }),
   execute: async ({ path, content }) => {
@@ -457,6 +572,7 @@ export const getDisplayInfoTool = tool({
 });
 
 export const sandboxTools = {
+  handoff: handoffTool,
   bash: bashTool,
   readFile: readFileTool,
   writeFile: writeFileTool,

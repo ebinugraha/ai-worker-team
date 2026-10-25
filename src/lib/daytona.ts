@@ -17,6 +17,20 @@ export async function createBotSandbox(botName?: string): Promise<string> {
   const sandbox = await daytona.create({
     labels: botName ? { botName } : undefined,
   });
+
+  // Initialize an empty MEMORY.md file inside the newly created bot sandbox
+  try {
+    if (sandbox.state === "stopped") {
+      await sandbox.start();
+    }
+    await sandbox.fs.uploadFile(Buffer.from(""), "MEMORY.md");
+  } catch (fsErr) {
+    console.error(
+      `Failed to initialize MEMORY.md in sandbox ${sandbox.id}:`,
+      fsErr
+    );
+  }
+
   return sandbox.id;
 }
 

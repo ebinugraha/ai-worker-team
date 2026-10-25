@@ -12,7 +12,21 @@ import {
 export interface ChatResizableLayoutProps {
   botId: string;
   botName: string;
-  botAvatar: string;
+  botAvatar?: string;
+  isGroup?: boolean;
+  avatars?: string[];
+  members?: Array<{
+    id: string;
+    name: string;
+    avatar: string;
+    job?: string;
+  }>;
+  availableBots?: Array<{
+    id: string;
+    name: string;
+    avatar: string;
+    job?: string;
+  }>;
   botJob?: string;
   botInstruction?: string;
   sandboxId?: string | null;
@@ -23,7 +37,11 @@ export interface ChatResizableLayoutProps {
 export function ChatResizableLayout({
   botId,
   botName,
-  botAvatar,
+  botAvatar = "bot-default",
+  isGroup = false,
+  avatars = [],
+  members = [],
+  availableBots = [],
   botJob = "",
   botInstruction = "",
   sandboxId,
@@ -43,6 +61,28 @@ export function ChatResizableLayout({
       window.removeEventListener("mouseup", handlePointerUp);
     };
   }, [isDragging]);
+
+  // Group chat does not have a desktop sandbox monitor panel
+  if (isGroup) {
+    return (
+      <div className="flex flex-col h-full min-h-0 min-w-0 w-full overflow-hidden">
+        <ChatHeader
+          botId={botId}
+          name={botName}
+          avatar={botAvatar}
+          isGroup={true}
+          avatars={avatars}
+          members={members}
+          availableBots={availableBots}
+          job={botJob}
+          instruction={botInstruction}
+        />
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
+          {children}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -68,6 +108,10 @@ export function ChatResizableLayout({
               botId={botId}
               name={botName}
               avatar={botAvatar}
+              isGroup={isGroup}
+              avatars={avatars}
+              members={members}
+              availableBots={availableBots}
               job={botJob}
               instruction={botInstruction}
               isMonitorOpen={isMonitorOpen}

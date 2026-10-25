@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { getUserBotsAction } from "@/action/bot";
+import { getUserGroupChatsAction } from "@/action/chat";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { SidebarMenu } from "@/components/sidebar-menu";
 
@@ -32,10 +33,18 @@ function SidebarFallback() {
 }
 
 async function AsyncSidebar() {
-  const result = await getUserBotsAction();
-  const userBots = result.success && result.data ? result.data : [];
+  const [botsResult, groupChatsResult] = await Promise.all([
+    getUserBotsAction(),
+    getUserGroupChatsAction(),
+  ]);
 
-  return <SidebarMenu initialBots={userBots} />;
+  const userBots = botsResult.success && botsResult.data ? botsResult.data : [];
+  const groupChats =
+    groupChatsResult.success && groupChatsResult.data ? groupChatsResult.data : [];
+
+  return (
+    <SidebarMenu initialBots={userBots} initialGroupChats={groupChats} />
+  );
 }
 
 export default function DashboardLayout({
