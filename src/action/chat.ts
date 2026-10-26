@@ -55,7 +55,22 @@ export async function loadChatTranscript(params: {
     throw new Error("Unauthorized");
   }
 
-  return baseLoadTranscript(params);
+  const result = await baseLoadTranscript(params);
+  if (result && Array.isArray(result.messages)) {
+    const seen = new Map<string, number>();
+    for (let i = 0; i < result.messages.length; i++) {
+      const msg = result.messages[i];
+      if (msg && msg.id) {
+        seen.set(msg.id, i);
+      }
+    }
+    result.messages = result.messages.filter((msg, index) => {
+      if (!msg || !msg.id) return false;
+      return seen.get(msg.id) === index;
+    });
+  }
+
+  return result;
 }
 
 export interface ChatMemberBot {

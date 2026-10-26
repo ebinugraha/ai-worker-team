@@ -159,13 +159,29 @@ function ChatBotContent({
     },
   });
 
+  // Deduplicate messages by ID to prevent duplicate React keys and duplicate bubbles
+  const displayMessages = React.useMemo(() => {
+    if (!messages || messages.length === 0) return [];
+    const seen = new Map<string, number>();
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      if (msg && msg.id) {
+        seen.set(msg.id, i);
+      }
+    }
+    return messages.filter((msg, index) => {
+      if (!msg || !msg.id) return false;
+      return seen.get(msg.id) === index;
+    });
+  }, [messages]);
+
   const isLoading = status === "submitted" || status === "streaming";
 
   const getBotForMessage = React.useCallback(
     (messageIndex: number): MemberBot | null => {
       if (!isGroup || memberBots.length === 0) return null;
 
-      const currentMsg = messages[messageIndex];
+      const currentMsg = displayMessages[messageIndex];
 
       // 0. If this message executed a successful handoff, the target bot is the primary responder!
       if (currentMsg && currentMsg.parts) {
@@ -207,7 +223,7 @@ function ChatBotContent({
 
       // 2. Look backwards for the user message that prompted this assistant turn
       for (let i = messageIndex - 1; i >= 0; i--) {
-        const prevMsg = messages[i];
+        const prevMsg = displayMessages[i];
         if (
           prevMsg.role === "user" &&
           prevMsg.metadata &&
@@ -246,7 +262,7 @@ function ChatBotContent({
       }
 
       // 4. For the actively in-flight response (currently streaming or thinking), use selectedBot
-      const isLatestMessage = messageIndex === messages.length - 1;
+      const isLatestMessage = messageIndex === displayMessages.length - 1;
       if (isLatestMessage && isLoading && selectedBot) {
         return selectedBot;
       }
@@ -255,14 +271,14 @@ function ChatBotContent({
       // Never use selectedBot here, because selectedBot reflects the active composer dropdown!
       return memberBots[0] ?? null;
     },
-    [isGroup, memberBots, messages, isLoading, selectedBot]
+    [isGroup, memberBots, displayMessages, isLoading, selectedBot]
   );
 
   const getTargetBotForUserMessage = React.useCallback(
     (messageIndex: number): MemberBot | null => {
       if (!isGroup || memberBots.length === 0) return null;
 
-      const currentMsg = messages[messageIndex];
+      const currentMsg = displayMessages[messageIndex];
 
       // 1. Direct match on user message metadata
       if (
@@ -276,14 +292,14 @@ function ChatBotContent({
       }
 
       // 2. If it is the latest message (in-flight or waiting for response), use selectedBot
-      const isLatestMessage = messageIndex === messages.length - 1;
+      const isLatestMessage = messageIndex === displayMessages.length - 1;
       if (isLatestMessage && selectedBot) {
         return selectedBot;
       }
 
       // 3. Check the assistant response that immediately followed this user turn
-      if (messageIndex < messages.length - 1) {
-        const nextMsg = messages[messageIndex + 1];
+      if (messageIndex < displayMessages.length - 1) {
+        const nextMsg = displayMessages[messageIndex + 1];
         if (
           nextMsg?.metadata &&
           typeof nextMsg.metadata === "object" &&
@@ -301,7 +317,7 @@ function ChatBotContent({
       // 4. Stable fallback for historical messages
       return memberBots[0] ?? null;
     },
-    [isGroup, memberBots, messages, selectedBot, getBotForMessage]
+    [isGroup, memberBots, displayMessages, selectedBot, getBotForMessage]
   );
 
   const [attachments, setAttachments] = React.useState<PendingAttachment[]>([]);
@@ -629,13 +645,13 @@ function ChatBotContent({
         <MessageScroller className="flex-1 min-h-0 h-0">
           <MessageScrollerViewport className="p-4 sm:p-6 md:p-8 pt-6">
             <MessageScrollerContent className="w-full min-h-full flex flex-col justify-between">
-              {messages.length === 0 ? (
+              {displayMessages.length === 0 ? (
                 <div className="flex-1" />
               ) : (
                 <div className="flex flex-col gap-4 flex-1 w-full">
-                  {messages.map((message, messageIndex) => {
+                  {displayMessages.map((message, messageIndex) => {
                     const isUser = message.role === "user";
-                    const isLatestMessage = messageIndex === messages.length - 1;
+                    const isLatestMessage = messageIndex === displayMessages.length - 1;
                     const botForMessage = !isUser
                       ? getBotForMessage(messageIndex)
                       : null;
@@ -1108,6 +1124,23 @@ export function ChatBotView(props: ChatBotViewProps) {
     }
   );
 
+  const deduplicatedInitialMessages = React.useMemo(() => {
+    if (!transcriptMessages || transcriptMessages.length === 0) {
+      return transcriptMessages;
+    }
+    const seen = new Map<string, number>();
+    for (let i = 0; i < transcriptMessages.length; i++) {
+      const msg = transcriptMessages[i];
+      if (msg && msg.id) {
+        seen.set(msg.id, i);
+      }
+    }
+    return transcriptMessages.filter((msg, index) => {
+      if (!msg || !msg.id) return false;
+      return seen.get(msg.id) === index;
+    });
+  }, [transcriptMessages]);
+
   if (isLoading) {
     return (
       <div className="flex flex-1 flex-col h-full min-h-0 w-full p-4 sm:p-6 md:p-8 justify-between animate-pulse bg-background">
@@ -1130,7 +1163,7 @@ export function ChatBotView(props: ChatBotViewProps) {
     <ChatBotContent
       {...props}
       key={props.chatId}
-      initialMessages={transcriptMessages}
+      initialMessages={deduplicatedInitialMessages}
       transport={transport}
     />
   );

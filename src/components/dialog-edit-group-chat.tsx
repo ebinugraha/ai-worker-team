@@ -181,8 +181,8 @@ export function DialogEditGroupChat({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[500px] p-6 gap-5 rounded-2xl bg-card border-border/60">
-          <DialogHeader className="gap-1.5 text-left">
+        <DialogContent className="sm:max-w-[500px] max-h-[calc(100svh-2rem)] sm:max-h-[calc(100svh-3.5rem)] flex flex-col p-0 gap-0 rounded-2xl bg-card border-border/60 overflow-hidden">
+          <DialogHeader className="p-6 pb-4 gap-1.5 text-left shrink-0">
             <DialogTitle className="text-xl font-semibold tracking-tight text-foreground">
               Edit group chat
             </DialogTitle>
@@ -191,100 +191,103 @@ export function DialogEditGroupChat({
             </DialogDescription>
           </DialogHeader>
 
-          {/* Server / Validation Error Alert */}
-          {errorMessage && (
-            <div className="rounded-xl bg-destructive/10 border border-destructive/20 p-3 text-xs text-destructive">
-              {errorMessage}
-            </div>
-          )}
+          {/* Scrollable Form Body */}
+          <div className="overflow-y-auto overscroll-contain flex-1 min-h-0 px-6 py-1 flex flex-col gap-4">
+            {/* Server / Validation Error Alert */}
+            {errorMessage && (
+              <div className="rounded-xl bg-destructive/10 border border-destructive/20 p-3 text-xs text-destructive">
+                {errorMessage}
+              </div>
+            )}
 
-          <form
-            id="edit-group-form"
-            onSubmit={handleFormSubmit}
-            className="flex flex-col gap-4"
-          >
-            {/* Group Name input */}
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor="edit-group-name-input"
-                className="text-sm font-medium text-foreground"
-              >
-                Name
-              </label>
-              <Input
-                id="edit-group-name-input"
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  if (errorMessage) setErrorMessage(null);
-                }}
-                placeholder="Team group name"
-                disabled={isPending || isDeleting}
-                className="h-9 bg-neutral-900/60 border-neutral-800 focus:border-neutral-700 text-sm"
-              />
-            </div>
-
-            {/* Bots selection list */}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-foreground">
-                  Members
+            <form
+              id="edit-group-form"
+              onSubmit={handleFormSubmit}
+              className="flex flex-col gap-4"
+            >
+              {/* Group Name input */}
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="edit-group-name-input"
+                  className="text-sm font-medium text-foreground"
+                >
+                  Name
                 </label>
-                <span className="text-xs text-muted-foreground">
-                  {selectedBotIds.length} of {allBots.length} selected
-                </span>
+                <Input
+                  id="edit-group-name-input"
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    if (errorMessage) setErrorMessage(null);
+                  }}
+                  placeholder="Team group name"
+                  disabled={isPending || isDeleting}
+                  className="h-9 bg-neutral-900/60 border-neutral-800 focus:border-neutral-700 text-sm"
+                />
               </div>
 
-              {allBots.length === 0 ? (
-                <div className="rounded-lg border border-border/60 p-4 text-center text-xs text-muted-foreground">
-                  No bots found.
+              {/* Bots selection list */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-foreground">
+                    Members
+                  </label>
+                  <span className="text-xs text-muted-foreground">
+                    {selectedBotIds.length} of {allBots.length} selected
+                  </span>
                 </div>
-              ) : (
-                <div className="max-h-60 overflow-y-auto space-y-1 rounded-lg border border-border/60 p-1.5 bg-neutral-950/40">
-                  {allBots.map((bot) => {
-                    const isChecked = selectedBotIds.includes(bot.id);
-                    return (
-                      <div
-                        key={bot.id}
-                        onClick={() => !isPending && !isDeleting && toggleBot(bot.id)}
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors select-none",
-                          isChecked
-                            ? "bg-neutral-800/70 text-foreground"
-                            : "hover:bg-neutral-900 text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        <Checkbox
-                          checked={isChecked}
-                          onCheckedChange={() => toggleBot(bot.id)}
-                          disabled={isPending || isDeleting}
-                          className="pointer-events-none"
-                        />
-                        <SeedAvatar
-                          seed={bot.avatar}
-                          size={28}
-                          className="rounded-full shrink-0"
-                        />
-                        <div className="flex flex-col min-w-0 flex-1">
-                          <span className="text-sm font-medium truncate text-foreground">
-                            {bot.name}
-                          </span>
-                          {bot.job && (
-                            <span className="text-xs text-muted-foreground truncate">
-                              {bot.job}
-                            </span>
+
+                {allBots.length === 0 ? (
+                  <div className="rounded-lg border border-border/60 p-4 text-center text-xs text-muted-foreground">
+                    No bots found.
+                  </div>
+                ) : (
+                  <div className="max-h-60 overflow-y-auto space-y-1 rounded-lg border border-border/60 p-1.5 bg-neutral-950/40">
+                    {allBots.map((bot) => {
+                      const isChecked = selectedBotIds.includes(bot.id);
+                      return (
+                        <div
+                          key={bot.id}
+                          onClick={() => !isPending && !isDeleting && toggleBot(bot.id)}
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors select-none",
+                            isChecked
+                              ? "bg-neutral-800/70 text-foreground"
+                              : "hover:bg-neutral-900 text-muted-foreground hover:text-foreground"
                           )}
+                        >
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={() => toggleBot(bot.id)}
+                            disabled={isPending || isDeleting}
+                            className="pointer-events-none"
+                          />
+                          <SeedAvatar
+                            seed={bot.avatar}
+                            size={28}
+                            className="rounded-full shrink-0"
+                          />
+                          <div className="flex flex-col min-w-0 flex-1">
+                            <span className="text-sm font-medium truncate text-foreground">
+                              {bot.name}
+                            </span>
+                            {bot.job && (
+                              <span className="text-xs text-muted-foreground truncate">
+                                {bot.job}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </form>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </form>
+          </div>
 
           {/* Dialog Footer with Delete on justify-start and Cancel/Save on justify-end */}
-          <DialogFooter className="border-t border-border/60 flex flex-row items-center justify-between pt-4">
+          <DialogFooter className="p-6 pt-3 mt-auto shrink-0 border-t border-border/60 flex flex-row items-center sm:justify-between justify-between w-full bg-card/90 backdrop-blur-xs">
             <Button
               type="button"
               variant="destructive"

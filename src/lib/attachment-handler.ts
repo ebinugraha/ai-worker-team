@@ -82,8 +82,8 @@ export async function processAttachmentBuffer({
         await parser.destroy();
         const extracted = res.text?.trim();
         if (extracted) {
-          // Provide up to 25,000 characters of clean text for AI comprehension
-          previewText = extracted.slice(0, 25000);
+          // Provide up to 200,000 characters of clean text for AI comprehension
+          previewText = extracted.slice(0, 200000);
         }
       } catch (pdfErr) {
         console.warn("Failed to parse PDF document:", pdfErr);
@@ -100,10 +100,10 @@ export async function processAttachmentBuffer({
         originalName
       );
 
-    if (isTextFile && !isPdf && buffer.length < 2000000) {
+    if (isTextFile && !isPdf && buffer.length < 10000000) {
       try {
         const raw = buffer.toString("utf-8");
-        previewText = raw.slice(0, 25000);
+        previewText = raw.slice(0, 200000);
       } catch {
         // ignore encoding errors
       }
@@ -139,10 +139,10 @@ export async function processAttachmentBuffer({
       }
     }
 
-    // 5. If a botId is provided, upload directly to the bot's Daytona sandbox
+    // 5. If a botId is provided, upload directly to the bot's (or group member bots') Daytona sandbox
     if (botId) {
       try {
-        let targetSandboxId: string | null = null;
+        const targetSandboxIds: string[] = [];
 
         // Check if botId is directly a bot ID
         const [bot] = await db
@@ -155,44 +155,51 @@ export async function processAttachmentBuffer({
           .limit(1);
 
         if (bot?.sandboxId) {
-          targetSandboxId = bot.sandboxId;
+          targetSandboxIds.push(bot.sandboxId);
         } else {
-          // If botId is a group chatId, find any member bot with an active sandbox
+          // If botId is a group chatId, find all member bots with active sandboxes
           const membersWithSandbox = await db
             .select({
               sandboxId: bots.sandboxId,
             })
             .from(chatMembers)
             .innerJoin(bots, eq(chatMembers.botId, bots.id))
-            .where(eq(chatMembers.chatId, botId))
-            .limit(1);
+            .where(eq(chatMembers.chatId, botId));
 
-          if (membersWithSandbox[0]?.sandboxId) {
-            targetSandboxId = membersWithSandbox[0].sandboxId;
+          for (const m of membersWithSandbox) {
+            if (m.sandboxId && !targetSandboxIds.includes(m.sandboxId)) {
+              targetSandboxIds.push(m.sandboxId);
+            }
           }
         }
 
-        if (targetSandboxId) {
+        if (targetSandboxIds.length > 0) {
           const daytona = getDaytonaClient();
-          const sandbox = await daytona.get(targetSandboxId);
-
-          if (sandbox.state === "stopped") {
-            await sandbox.start();
-          }
-
           const targetSandboxFile = `/home/daytona/uploads/${uniqueFileName}`;
-          await sandbox.process.executeCommand("mkdir -p /home/daytona/uploads");
-          await sandbox.fs.uploadFile(buffer, targetSandboxFile);
-          sandboxPath = targetSandboxFile;
+          const dirName = uniqueFileName.replace(/\.zip$/i, "");
+          const targetDir = `/home/daytona/uploads/${dirName}`;
 
-          // If ZIP archive, auto-extract inside the sandbox workspace
-          if (isZip) {
-            const dirName = uniqueFileName.replace(/\.zip$/i, "");
-            const targetDir = `/home/daytona/uploads/${dirName}`;
-            await sandbox.process.executeCommand(
-              `mkdir -p "${targetDir}" && unzip -q -o "${targetSandboxFile}" -d "${targetDir}"`
-            );
-            extractedPath = targetDir;
+          for (const sId of targetSandboxIds) {
+            try {
+              const sandbox = await daytona.get(sId);
+              if (sandbox.state === "stopped") {
+                await sandbox.start();
+              }
+
+              await sandbox.process.executeCommand("mkdir -p /home/daytona/uploads");
+              await sandbox.fs.uploadFile(buffer, targetSandboxFile);
+              sandboxPath = targetSandboxFile;
+
+              // If ZIP archive, auto-extract inside the sandbox workspace
+              if (isZip) {
+                await sandbox.process.executeCommand(
+                  `mkdir -p "${targetDir}" && unzip -q -o "${targetSandboxFile}" -d "${targetDir}"`
+                );
+                extractedPath = targetDir;
+              }
+            } catch (perSandboxErr) {
+              console.warn(`Could not sync file to sandbox ${sId}:`, perSandboxErr);
+            }
           }
         }
       } catch (sandboxErr) {

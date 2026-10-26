@@ -104,8 +104,8 @@ export function DialogCreateGroupChat({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[480px] p-6 gap-5 bg-background border-border">
-        <DialogHeader className="gap-1.5">
+      <DialogContent className="sm:max-w-[480px] max-h-[calc(100svh-2rem)] sm:max-h-[calc(100svh-3.5rem)] flex flex-col p-0 gap-0 bg-background border-border rounded-2xl overflow-hidden">
+        <DialogHeader className="p-6 pb-4 gap-1.5 text-left shrink-0">
           <DialogTitle className="text-lg font-semibold text-foreground">
             New group chat
           </DialogTitle>
@@ -114,7 +114,11 @@ export function DialogCreateGroupChat({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form
+          id="create-group-form"
+          onSubmit={handleSubmit}
+          className="overflow-y-auto overscroll-contain flex-1 min-h-0 px-6 py-1 flex flex-col gap-4"
+        >
           {/* Group Name input */}
           <div className="flex flex-col gap-1.5">
             <label
@@ -200,35 +204,33 @@ export function DialogCreateGroupChat({
               {error}
             </div>
           )}
-
-          {/* Divider */}
-          <div className="border-t border-border/60 mt-1" />
-
-          {/* Footer buttons */}
-          <DialogFooter className="flex items-center justify-end gap-2 pt-1">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={isPending}
-              className="h-8.5 px-3.5 text-xs font-medium cursor-pointer"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={
-                isPending ||
-                !name.trim() ||
-                selectedBotIds.length < 2 ||
-                availableBots.length < 2
-              }
-              className="h-8.5 px-3.5 text-xs font-medium cursor-pointer"
-            >
-              {isPending ? "Creating..." : "Create group"}
-            </Button>
-          </DialogFooter>
         </form>
+
+        {/* Footer buttons */}
+        <DialogFooter className="p-6 pt-3 mt-auto shrink-0 border-t border-border/60 flex items-center justify-end gap-2 bg-background/90 backdrop-blur-xs">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={isPending}
+            className="h-8.5 px-3.5 text-xs font-medium cursor-pointer"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="create-group-form"
+            disabled={
+              isPending ||
+              !name.trim() ||
+              selectedBotIds.length < 2 ||
+              availableBots.length < 2
+            }
+            className="h-8.5 px-3.5 text-xs font-medium cursor-pointer"
+          >
+            {isPending ? "Creating..." : "Create group"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

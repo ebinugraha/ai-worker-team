@@ -150,8 +150,8 @@ export const bashTool = tool({
       const res = await sandbox.process.executeCommand(command, cwd);
       const rawStdout = res.result || "";
       const stdout =
-        rawStdout.length > 25000
-          ? rawStdout.slice(0, 20000) + "\n...[stdout truncated to conserve tokens]"
+        rawStdout.length > 300000
+          ? rawStdout.slice(0, 250000) + "\n...[stdout truncated after 250,000 characters]"
           : rawStdout;
       return {
         success: res.exitCode === 0,
@@ -213,8 +213,8 @@ export const readFileTool = tool({
 
       const rawContent = buffer.toString("utf-8");
       const content =
-        rawContent.length > 25000
-          ? rawContent.slice(0, 20000) + "\n...[file content truncated to conserve tokens]"
+        rawContent.length > 400000
+          ? rawContent.slice(0, 350000) + "\n...[file content truncated after 350,000 characters]"
           : rawContent;
       return {
         success: true,

@@ -145,8 +145,8 @@ export function DialogCreateBot({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] p-6 gap-5 rounded-2xl bg-card border-border/60">
-        <DialogHeader className="gap-1.5 text-left">
+      <DialogContent className="sm:max-w-[500px] max-h-[calc(100svh-2rem)] sm:max-h-[calc(100svh-3.5rem)] flex flex-col p-0 gap-0 rounded-2xl bg-card border-border/60 overflow-hidden">
+        <DialogHeader className="p-6 pb-4 gap-1.5 text-left shrink-0">
           <DialogTitle className="text-xl font-semibold tracking-tight text-foreground">
             New bot
           </DialogTitle>
@@ -155,64 +155,68 @@ export function DialogCreateBot({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Server Error Alert */}
-        {errorMessage && (
-          <div className="rounded-xl bg-destructive/10 border border-destructive/20 p-3 text-xs text-destructive">
-            {errorMessage}
-          </div>
-        )}
-
-        {/* Preset Chips */}
-        <div className="flex flex-wrap gap-2">
-          {PRESETS.map((preset) => {
-            const isActive = selectedPreset === preset.label;
-            return (
-              <button
-                key={preset.label}
-                type="button"
-                onClick={() => handleSelectPreset(preset)}
-                className={cn(
-                  "rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors border",
-                  isActive
-                    ? "bg-secondary text-secondary-foreground border-border"
-                    : "bg-muted/40 text-muted-foreground border-border/40 hover:bg-muted hover:text-foreground"
-                )}
-              >
-                {preset.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Face / Avatar Section */}
-        <div className="flex items-center justify-between py-0.5">
-          <div className="flex items-center gap-3">
-            <div className="size-10 overflow-hidden shrink-0 flex items-center justify-center">
-              <SeedAvatar seed={watchAvatar} size={40} className="rounded-none" />
+        {/* Scrollable Form Body */}
+        <form
+          id="create-bot-form"
+          onSubmit={handleSubmit(onFormSubmit)}
+          className="overflow-y-auto overscroll-contain flex-1 min-h-0 px-6 py-1 flex flex-col gap-5"
+        >
+          {/* Server Error Alert */}
+          {errorMessage && (
+            <div className="rounded-xl bg-destructive/10 border border-destructive/20 p-3 text-xs text-destructive">
+              {errorMessage}
             </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold text-foreground leading-tight">
-                Face
-              </span>
-              <span className="text-xs text-muted-foreground mt-0.5">
-                Shuffle until you find one you like.
-              </span>
-            </div>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleShuffleAvatar}
-            className="rounded-lg h-8 px-3 gap-1.5 text-xs font-medium border-border/80 hover:bg-muted cursor-pointer"
-          >
-            <ShuffleIcon className="size-3.5" data-icon="inline-start" />
-            Shuffle
-          </Button>
-        </div>
+          )}
 
-        {/* Form Body */}
-        <form id="create-bot-form" onSubmit={handleSubmit(onFormSubmit)}>
+          {/* Preset Chips */}
+          <div className="flex flex-wrap gap-2">
+            {PRESETS.map((preset) => {
+              const isActive = selectedPreset === preset.label;
+              return (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => handleSelectPreset(preset)}
+                  className={cn(
+                    "rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors border cursor-pointer",
+                    isActive
+                      ? "bg-secondary text-secondary-foreground border-border"
+                      : "bg-muted/40 text-muted-foreground border-border/40 hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Face / Avatar Section */}
+          <div className="flex items-center justify-between py-0.5">
+            <div className="flex items-center gap-3">
+              <div className="size-10 overflow-hidden shrink-0 flex items-center justify-center">
+                <SeedAvatar seed={watchAvatar} size={40} className="rounded-none" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-foreground leading-tight">
+                  Face
+                </span>
+                <span className="text-xs text-muted-foreground mt-0.5">
+                  Shuffle until you find one you like.
+                </span>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleShuffleAvatar}
+              className="rounded-lg h-8 px-3 gap-1.5 text-xs font-medium border-border/80 hover:bg-muted cursor-pointer"
+            >
+              <ShuffleIcon className="size-3.5" data-icon="inline-start" />
+              Shuffle
+            </Button>
+          </div>
+
           <FieldGroup className="gap-4">
             {/* Name Field */}
             <Field data-invalid={!!errors.name} className="gap-1.5">
@@ -270,14 +274,14 @@ export function DialogCreateBot({
               </FieldLabel>
               <Textarea
                 id="bot-instructions"
-                rows={3}
+                rows={4}
                 placeholder="Answer briefly, cite sources, and ask before running anything destructive."
                 disabled={isPending}
                 {...register("instructions", {
                   required: "Instructions are required",
                 })}
                 aria-invalid={!!errors.instructions}
-                className="rounded-lg bg-muted/20 border-border/60 text-sm resize-none focus-visible:ring-1 leading-relaxed"
+                className="rounded-lg bg-muted/20 border-border/60 text-sm focus-visible:ring-1 leading-relaxed min-h-[96px] max-h-[280px]"
               />
               {errors.instructions && (
                 <span className="text-xs text-destructive">
@@ -288,13 +292,13 @@ export function DialogCreateBot({
           </FieldGroup>
         </form>
 
-        <DialogFooter className="mt-2 pt-3 border-t border-border/60 flex items-center justify-end gap-2.5">
+        <DialogFooter className="p-6 pt-3 mt-auto shrink-0 border-t border-border/60 flex items-center justify-end gap-2.5 bg-card/90 backdrop-blur-xs">
           <Button
             type="button"
             variant="outline"
             disabled={isPending}
             onClick={() => onOpenChange(false)}
-            className="rounded-lg text-sm px-4"
+            className="rounded-lg text-sm px-4 cursor-pointer"
           >
             Cancel
           </Button>
@@ -303,7 +307,7 @@ export function DialogCreateBot({
             form="create-bot-form"
             disabled={isPending}
             variant="default"
-            className="rounded-lg text-sm px-4 font-semibold shadow-xs gap-1.5"
+            className="rounded-lg text-sm px-4 font-semibold shadow-xs gap-1.5 cursor-pointer"
           >
             {isPending ? (
               <>
