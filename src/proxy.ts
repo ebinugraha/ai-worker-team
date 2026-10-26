@@ -5,10 +5,10 @@ export default clerkMiddleware(async (auth, req) => {
   const { userId } = await auth();
   const { pathname } = req.nextUrl;
 
-  // Jika belum login dan mengakses halaman awal, arahkan langsung ke halaman sign-in
+  // Jika belum login dan mengakses halaman awal, arahkan ke landing page
   if (!userId && pathname === "/") {
-    const signInUrl = new URL("/sign-in", req.url);
-    return NextResponse.redirect(signInUrl);
+    const landingUrl = new URL("/landing", req.url);
+    return NextResponse.redirect(landingUrl);
   }
 });
 

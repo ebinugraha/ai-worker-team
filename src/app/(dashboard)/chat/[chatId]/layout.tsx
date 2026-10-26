@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Chat - ai-worker-team",
+  title: "Chat - Genichiro",
   description: "Chatbot conversation workspace",
 };
 

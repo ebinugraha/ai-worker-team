@@ -6,7 +6,7 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { SidebarMenu } from "@/components/sidebar-menu";
 
 export const metadata: Metadata = {
-  title: "ai-worker-team - Dashboard",
+  title: "Genichiro - Dashboard",
   description: "Dashboard Workspace",
 };
 
@@ -16,7 +16,11 @@ function SidebarFallback() {
       aria-hidden="true"
       className="hidden md:flex flex-col w-(--sidebar-width) h-svh border-r border-sidebar-border bg-sidebar p-3 gap-3"
     >
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="size-5 rounded-md bg-sidebar-accent/50 animate-pulse" />
+          <div className="h-4 w-20 rounded bg-sidebar-accent/50 animate-pulse" />
+        </div>
         <div className="size-7 rounded-lg bg-sidebar-accent/50 animate-pulse" />
       </div>
       <div className="h-8 w-full rounded-lg bg-sidebar-accent/50 animate-pulse" />

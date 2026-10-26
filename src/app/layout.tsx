@@ -11,8 +11,21 @@ import { ThemeProvider } from "@/components/theme-provider";
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "ai-worker-team",
-  description: "AI Worker Team",
+  title: {
+    default: "Genichiro",
+    template: "%s - Genichiro",
+  },
+  description: "Genichiro - AI Worker Team Workspace",
+  icons: {
+    icon: [
+      {
+        url: "/Logo.svg",
+        type: "image/svg+xml",
+      },
+    ],
+    shortcut: "/Logo.svg",
+    apple: "/Logo.svg",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "ai-worker-team - Authentication",
-  description: "Sign in to AI Worker Team",
+  title: "Genichiro - Authentication",
+  description: "Sign in to Genichiro Workspace",
 };
 
 export default function AuthorizeLayout({

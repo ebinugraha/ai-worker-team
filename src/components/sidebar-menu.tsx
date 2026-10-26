@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
-import { PlusIcon, SearchIcon, UsersIcon, SettingsIcon } from "lucide-react";
+import { PlusIcon, SearchIcon, UsersIcon, SettingsIcon, GlobeIcon } from "lucide-react";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
   Sidebar,
@@ -130,6 +132,11 @@ function SidebarUserButton() {
     >
       <UserButton.MenuItems>
         <UserButton.Link
+          label="Landing Page"
+          href="/landing"
+          labelIcon={<GlobeIcon className="size-4" />}
+        />
+        <UserButton.Link
           label="Settings"
           href="/settings"
           labelIcon={<SettingsIcon className="size-4" />}
@@ -201,8 +208,42 @@ export function SidebarMenu({
       >
         {/* Top Header Section */}
         <SidebarHeader className="p-3 pb-2 gap-3 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:gap-2">
-          {/* Top Action Row: '+' button on the top right opening DropdownMenu */}
-          <div className="flex items-center justify-end group-data-[collapsible=icon]:justify-center">
+          {/* Top Action Row: Logo + 'Genichiro' on the left, '+' button on the right */}
+          <div className="flex items-center justify-between group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:gap-2">
+            {/* Logo + Genichiro brand title */}
+            <Link
+              href="/"
+              className="flex items-center gap-2.5 min-w-0 select-none group-data-[collapsible=icon]:hidden hover:opacity-85 transition-opacity"
+            >
+              <Image
+                src="/Logo.svg"
+                alt="Genichiro"
+                width={22}
+                height={20}
+                className="h-5 w-auto shrink-0 object-contain"
+                priority
+              />
+              <span className="font-semibold text-sm tracking-tight text-foreground truncate">
+                Genichiro
+              </span>
+            </Link>
+
+            {/* Logo in collapsed mode */}
+            <Link
+              href="/"
+              className="hidden group-data-[collapsible=icon]:flex items-center justify-center size-9 rounded-xl hover:bg-sidebar-accent transition-colors select-none"
+              title="Genichiro Home"
+            >
+              <Image
+                src="/Logo.svg"
+                alt="Genichiro"
+                width={22}
+                height={20}
+                className="size-5 shrink-0 object-contain"
+                priority
+              />
+            </Link>
+
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={

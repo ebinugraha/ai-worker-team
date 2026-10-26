@@ -6,7 +6,7 @@ import { SettingsView } from "@/components/settings-view";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const metadata: Metadata = {
-  title: "ai-worker-team - Pengaturan Model AI",
+  title: "Genichiro - Pengaturan Model AI",
   description: "Kelola konfigurasi provider, API key, dan model AI",
 };
 
