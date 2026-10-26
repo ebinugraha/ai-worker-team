@@ -53,7 +53,23 @@ import {
   BrainIcon,
   ChevronDownIcon,
   CheckIcon,
+  Loader2Icon,
+  CheckCircle2Icon,
+  SparklesIcon,
+  AlertTriangleIcon,
 } from "lucide-react";
+import {
+  ComposerAttachmentStrip,
+  ChatDropzoneOverlay,
+  MessageAttachmentsView,
+  extractAttachmentsFromText,
+  type PendingAttachment,
+  type StoredAttachmentMeta,
+} from "@/components/chat-attachments";
+import {
+  compressImageClientSide,
+  formatFileSize,
+} from "@/lib/attachment-utils";
 
 export interface MemberBot {
   id: string;
@@ -288,21 +304,269 @@ function ChatBotContent({
     [isGroup, memberBots, messages, selectedBot, getBotForMessage]
   );
 
-  const handleSubmit = (e?: React.FormEvent) => {
+  const [attachments, setAttachments] = React.useState<PendingAttachment[]>([]);
+  const [isDraggingOver, setIsDraggingOver] = React.useState(false);
+  const [isUploadingAttachments, setIsUploadingAttachments] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const dragCounterRef = React.useRef(0);
+
+  const addFilesToAttachments = React.useCallback(async (files: File[]) => {
+    if (!files || files.length === 0) return;
+
+    for (const rawFile of files) {
+      const isImage = rawFile.type.startsWith("image/");
+      const isZip =
+        rawFile.type.includes("zip") ||
+        rawFile.name.toLowerCase().endsWith(".zip") ||
+        rawFile.type === "application/x-zip-compressed";
+
+      const attId = `att_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+      if (isImage) {
+        try {
+          // Compress screenshot client-side (drastically reduces tokens from 5MB to ~40KB)
+          const compressed = await compressImageClientSide(rawFile);
+          setAttachments((prev) => [
+            ...prev,
+            {
+              id: attId,
+              file: compressed.file,
+              name: compressed.file.name,
+              size: compressed.compressedSize,
+              type: compressed.file.type,
+              isImage: true,
+              isZip: false,
+              previewUrl: compressed.dataUrl,
+              width: compressed.width,
+              height: compressed.height,
+              uploadStatus: "idle",
+            },
+          ]);
+        } catch {
+          const previewUrl = URL.createObjectURL(rawFile);
+          setAttachments((prev) => [
+            ...prev,
+            {
+              id: attId,
+              file: rawFile,
+              name: rawFile.name,
+              size: rawFile.size,
+              type: rawFile.type,
+              isImage: true,
+              isZip: false,
+              previewUrl,
+              uploadStatus: "idle",
+            },
+          ]);
+        }
+      } else {
+        setAttachments((prev) => [
+          ...prev,
+          {
+            id: attId,
+            file: rawFile,
+            name: rawFile.name,
+            size: rawFile.size,
+            type: rawFile.type || "application/octet-stream",
+            isImage: false,
+            isZip,
+            uploadStatus: "idle",
+          },
+        ]);
+      }
+    }
+  }, []);
+
+  const handlePaste = React.useCallback(
+    (e: React.ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const imageFiles: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) {
+            imageFiles.push(file);
+          }
+        }
+      }
+
+      if (imageFiles.length > 0) {
+        e.preventDefault();
+        addFilesToAttachments(imageFiles);
+      }
+    },
+    [addFilesToAttachments]
+  );
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current += 1;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDraggingOver(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setIsDraggingOver(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDraggingOver(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const droppedFiles = Array.from(e.dataTransfer.files);
+      addFilesToAttachments(droppedFiles);
+    }
+  };
+
+  const handleRemoveAttachment = (id: string) => {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  const handleSubmit = async (e?: React.FormEvent) => {
     if (e) {
       e.preventDefault();
     }
     const trimmed = input.trim();
-    if (!trimmed || isLoading) return;
+    if (
+      (!trimmed && attachments.length === 0) ||
+      isLoading ||
+      isUploadingAttachments
+    ) {
+      return;
+    }
 
     const botIdToTarget = isGroup && selectedBot ? selectedBot.id : chatId;
-
-    // Send the chosen bot ID via transport metadata and clientData
     transport.setClientData({ botId: botIdToTarget });
+
+    let finalPrompt = trimmed;
+    const currentAttachments = [...attachments];
+
+    if (currentAttachments.length > 0) {
+      setIsUploadingAttachments(true);
+      const uploadedMeta: StoredAttachmentMeta[] = [];
+      const promptContextLines: string[] = [];
+
+      for (const att of currentAttachments) {
+        try {
+          // Kirim binary file secara langsung dengan headers x-filename dan x-bot-id
+          // untuk menghindari limitasi multipartFormDataParser ("Failed to parse body as FormData") pada berkas > 20MB
+          const uploadRes = await fetch("/api/upload", {
+            method: "POST",
+            headers: {
+              "x-filename": encodeURIComponent(att.file.name),
+              "x-bot-id": botIdToTarget || "",
+              "content-type": att.file.type || "application/octet-stream",
+            },
+            body: att.file,
+          });
+
+          if (!uploadRes.ok) {
+            const errData = await uploadRes.json().catch(() => null);
+            throw new Error(errData?.error || `Upload gagal (HTTP ${uploadRes.status})`);
+          }
+
+          const res = await uploadRes.json();
+          if (res.success && res.data) {
+            const data = res.data;
+            uploadedMeta.push({
+              id: data.id,
+              name: data.name,
+              size: data.size,
+              type: data.isImage ? "image" : data.isZip ? "zip" : "file",
+              url: data.url,
+              sandboxPath: data.sandboxPath,
+              extractedPath: data.extractedPath,
+              fileCount: data.fileCount,
+            });
+
+            if (data.isZip) {
+              promptContextLines.push(
+                `📦 File Arsip ZIP: "${data.name}" (${formatFileSize(data.size)})` +
+                  (data.sandboxPath
+                    ? `\n- Tersimpan di Sandbox: \`${data.sandboxPath}\``
+                    : "") +
+                  (data.extractedPath
+                    ? `\n- Telah diekstrak ke direktori: \`${data.extractedPath}\``
+                    : "") +
+                  (data.fileList && data.fileList.length > 0
+                    ? `\n- File dalam arsip (${data.fileCount} total):\n${data.fileList
+                        .map((f: string) => `  * ${f}`)
+                        .join("\n")}`
+                    : "") +
+                  (data.previewText
+                    ? `\n- Ringkasan isi/README:\n"""\n${data.previewText}\n"""`
+                    : "") +
+                  `\n(Gunakan bashTool atau file tools untuk memeriksa atau menjalankan file ini di sandbox Anda.)`
+              );
+            } else if (data.isImage) {
+              promptContextLines.push(
+                `🖼️ Gambar/Foto terlampir: "${data.name}" (${formatFileSize(data.size)})` +
+                  (data.sandboxPath
+                    ? `\n- Tersimpan di Sandbox: \`${data.sandboxPath}\``
+                    : "") +
+                  `\n- Gambar ini telah disertakan dalam pesan visual multimodal Anda. Harap amati dan analisis gambar ini secara langsung untuk menjawab pertanyaan.`
+              );
+            } else {
+              promptContextLines.push(
+                `📄 Dokumen/File: "${data.name}" (${formatFileSize(data.size)})` +
+                  (data.sandboxPath
+                    ? `\n- Tersimpan di Sandbox: \`${data.sandboxPath}\``
+                    : "") +
+                  (data.previewText
+                    ? `\n- Isi teks dokumen:\n"""\n${data.previewText}\n"""`
+                    : "")
+              );
+            }
+          } else {
+            console.error("Gagal mengunggah lampiran:", res.error);
+          }
+        } catch (err) {
+          console.error("Gagal mengunggah attachment:", err);
+        }
+      }
+
+      setIsUploadingAttachments(false);
+
+      if (uploadedMeta.length === 0 && currentAttachments.length > 0) {
+        alert("Gagal mengunggah file. Pastikan ukuran file tidak melebihi 100 MB.");
+        return;
+      }
+
+      setAttachments([]);
+
+      const metaTag = `<!--attachments:${JSON.stringify(uploadedMeta)}-->`;
+      const userQuestion =
+        trimmed || "Tolong periksa dan analisis lampiran yang saya kirimkan.";
+      const contextBlock =
+        promptContextLines.length > 0
+          ? `\n\n[LAMPIRAN PENGGUNA]\n${promptContextLines.join("\n\n")}`
+          : "";
+
+      finalPrompt = `${userQuestion}${contextBlock}\n${metaTag}`;
+    }
 
     sendMessage(
       {
-        text: trimmed,
+        text: finalPrompt,
         metadata: {
           botId: botIdToTarget,
         },
@@ -320,10 +584,23 @@ function ChatBotContent({
     }
   };
 
-  const handleStop = () => {
-    stop();
-    transport.stopGeneration(chatId);
-  };
+  const handleStop = React.useCallback(
+    (e?: React.SyntheticEvent) => {
+      e?.preventDefault();
+      e?.stopPropagation();
+      try {
+        stop();
+      } catch (err) {
+        console.warn("useChat stop error:", err);
+      }
+      try {
+        transport.stopGeneration(chatId);
+      } catch (err) {
+        console.warn("transport stopGeneration error:", err);
+      }
+    },
+    [stop, transport, chatId]
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -340,7 +617,14 @@ function ChatBotContent({
   };
 
   return (
-    <div className="flex flex-1 flex-col h-full min-h-0 w-full overflow-hidden bg-background">
+    <div
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      className="relative flex flex-1 flex-col h-full min-h-0 w-full overflow-hidden bg-background"
+    >
+      <ChatDropzoneOverlay isDragging={isDraggingOver} />
       <MessageScrollerProvider autoScroll>
         <MessageScroller className="flex-1 min-h-0 h-0">
           <MessageScrollerViewport className="p-4 sm:p-6 md:p-8 pt-6">
@@ -351,6 +635,7 @@ function ChatBotContent({
                 <div className="flex flex-col gap-4 flex-1 w-full">
                   {messages.map((message, messageIndex) => {
                     const isUser = message.role === "user";
+                    const isLatestMessage = messageIndex === messages.length - 1;
                     const botForMessage = !isUser
                       ? getBotForMessage(messageIndex)
                       : null;
@@ -397,9 +682,17 @@ function ChatBotContent({
                                 )}
                                 {message.parts.map((part, index) => {
                                   if (part.type === "text") {
+                                    const { cleanText, attachments: parsedAttachments } =
+                                      extractAttachmentsFromText(part.text);
+
                                     return (
                                       <React.Fragment key={index}>
-                                        {part.text}
+                                        <MessageAttachmentsView
+                                          attachments={parsedAttachments}
+                                        />
+                                        {cleanText && (
+                                          <div>{cleanText}</div>
+                                        )}
                                       </React.Fragment>
                                     );
                                   }
@@ -448,27 +741,34 @@ function ChatBotContent({
                                   }
                                   if (part.type === "reasoning") {
                                     return (
-                                      <Trace key={index} className="my-1">
-                                        <TraceCollapsible defaultOpen={false}>
+                                      <Trace key={index} className="my-1.5">
+                                        <TraceCollapsible defaultOpen={true}>
                                           <TraceCollapsibleTrigger>
                                             <TraceLine
                                               status={
-                                                status === "streaming"
+                                                status === "streaming" && isLatestMessage
                                                   ? "running"
                                                   : undefined
                                               }
                                             >
                                               <TraceIcon>
-                                                <BrainIcon className="size-3.5" />
+                                                <BrainIcon
+                                                  className={cn(
+                                                    "size-3.5",
+                                                    status === "streaming" &&
+                                                      isLatestMessage &&
+                                                      "animate-pulse text-amber-400"
+                                                  )}
+                                                />
                                               </TraceIcon>
-                                              <TraceTitle>
-                                                {status === "streaming"
-                                                  ? "Thinking..."
-                                                  : "Thought"}
+                                              <TraceTitle className="text-xs font-medium">
+                                                {status === "streaming" && isLatestMessage
+                                                  ? "Sedang bernalar (Reasoning)..."
+                                                  : "Nalar Selesai (Reasoning)"}
                                               </TraceTitle>
                                             </TraceLine>
                                           </TraceCollapsibleTrigger>
-                                          <TraceCollapsibleContent className="mt-1 pl-5 text-xs text-muted-foreground whitespace-pre-wrap border-l-2 border-border/50 ml-2">
+                                          <TraceCollapsibleContent className="mt-1 pl-4 text-xs text-neutral-400 whitespace-pre-wrap border-l-2 border-neutral-700/60 ml-2 py-1 leading-relaxed bg-neutral-950/40 rounded-r-lg font-mono">
                                             {part.text}
                                           </TraceCollapsibleContent>
                                         </TraceCollapsible>
@@ -486,6 +786,61 @@ function ChatBotContent({
                                   }
                                   return null;
                                 })}
+
+                                {/* Live step & activity indicator while streaming */}
+                                {!isUser && isLatestMessage && status === "streaming" && (
+                                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-900/90 border border-neutral-700/70 text-xs text-neutral-300 shadow-sm animate-pulse mt-1 select-none w-fit">
+                                    <SparklesIcon className="size-3.5 text-amber-400 animate-spin" />
+                                    <span className="font-medium text-[11px]">
+                                      {(() => {
+                                        const lastPart =
+                                          message.parts[message.parts.length - 1];
+                                        if (lastPart?.type === "reasoning") {
+                                          return "Sedang bernalar (Reasoning)...";
+                                        }
+                                        if (lastPart && isToolPart(lastPart)) {
+                                          const tName = getToolName(lastPart);
+                                          if (tName === "bash")
+                                            return "Menjalankan perintah terminal di sandbox...";
+                                          if (tName === "readFile")
+                                            return "Membaca & menelaah dokumen file...";
+                                          if (tName === "writeFile")
+                                            return "Menulis data ke filesystem sandbox...";
+                                          if (tName === "listFiles")
+                                            return "Memeriksa struktur direktori sandbox...";
+                                          if (tName === "openImage")
+                                            return "Membuka & menampilkan gambar di layar sandbox...";
+                                          if (
+                                            tName === "viewScreen" ||
+                                            tName === "showScreen"
+                                          )
+                                            return "Mengambil tampilan layar...";
+                                          return `Mengeksekusi tool: ${tName}...`;
+                                        }
+                                        return "Sedang merespon...";
+                                      })()}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Anti-ghosting feedback: if tools were executed but no text response was produced */}
+                                {!isUser &&
+                                  status !== "streaming" &&
+                                  status !== "submitted" &&
+                                  message.parts.some((p) => isToolPart(p)) &&
+                                  !message.parts.some(
+                                    (p) =>
+                                      p.type === "text" &&
+                                      p.text &&
+                                      p.text.trim().length > 0
+                                  ) && (
+                                    <div className="w-fit max-w-full px-3.5 py-2 text-xs leading-relaxed rounded-xl bg-neutral-900 border border-emerald-500/30 text-emerald-300 flex items-center gap-2 shadow-xs mt-1">
+                                      <CheckCircle2Icon className="size-3.5 text-emerald-400 shrink-0" />
+                                      <span>
+                                        ✅ Tindakan telah selesai dieksekusi di sandbox. Semua instruksi berhasil diproses.
+                                      </span>
+                                    </div>
+                                  )}
                               </div>
                             </div>
                           )}
@@ -517,8 +872,9 @@ function ChatBotContent({
                                 {selectedBot.name}
                               </span>
                             )}
-                            <div className="w-fit px-5 py-2.5 rounded-full sm:rounded-[22px] text-sm bg-neutral-800 text-neutral-400 self-start animate-pulse">
-                              Thinking...
+                            <div className="w-fit px-4 py-2 rounded-2xl text-xs bg-neutral-900 border border-neutral-800 text-neutral-300 self-start flex items-center gap-2 shadow-xs animate-pulse">
+                              <Loader2Icon className="size-3.5 animate-spin text-amber-400" />
+                              <span>Memulai analisis & bernalar...</span>
                             </div>
                           </div>
                         </div>
@@ -526,10 +882,22 @@ function ChatBotContent({
                     </MessageScrollerItem>
                   )}
 
-                  {/* Error banner */}
+                  {/* Error feedback banner */}
                   {error && (
-                    <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
-                      Error: {error.message}
+                    <div className="flex w-full justify-start my-2">
+                      <div className="flex items-start gap-2.5 max-w-[92%] sm:max-w-[85%]">
+                        <div className="rounded-2xl border border-rose-500/30 bg-rose-950/25 p-3.5 text-xs text-rose-200 flex items-start gap-2.5 shadow-sm">
+                          <AlertTriangleIcon className="size-4 text-rose-400 shrink-0 mt-0.5" />
+                          <div className="flex flex-col gap-1">
+                            <span className="font-semibold text-rose-300">
+                              ⚠️ Terjadi Gangguan / Gagal Merespon
+                            </span>
+                            <p className="text-neutral-300 leading-relaxed text-[11px]">
+                              Koneksi ke model AI atau eksekusi tools mengalami kendala ({error.message || "Upstream endpoint timeout / error"}). Silakan coba kirim ulang atau cek pengaturan model di menu Settings.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -542,13 +910,45 @@ function ChatBotContent({
 
       {/* Input area with AI elements bot-picker dropdown */}
       <div className="p-4 sm:p-6 w-full shrink-0 z-10">
-        <form onSubmit={handleSubmit} className="w-full">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (isLoading) {
+              handleStop(e);
+              return;
+            }
+            handleSubmit(e);
+          }}
+          className="w-full"
+        >
+          {/* Hidden file input for attachment picker */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files) {
+                addFilesToAttachments(Array.from(e.target.files));
+              }
+              e.target.value = "";
+            }}
+          />
+
           <div className="w-full rounded-2xl bg-neutral-900 border border-neutral-800/80 p-3 sm:p-4 shadow-sm focus-within:border-neutral-700 transition-all flex flex-col gap-2">
+            {/* Attachment preview thumbnails (ChatGPT/Gemini style) */}
+            <ComposerAttachmentStrip
+              attachments={attachments}
+              onRemove={handleRemoveAttachment}
+              disabled={isLoading || isUploadingAttachments}
+            />
+
             <textarea
               ref={textareaRef}
               value={input}
               onChange={handleInput}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder={
                 isGroup && selectedBot
                   ? `Message ${selectedBot.name}...`
@@ -559,7 +959,7 @@ function ChatBotContent({
                   ? `Message ${selectedBot.name}`
                   : `Message ${botName}`
               }
-              disabled={isLoading}
+              disabled={isLoading || isUploadingAttachments}
               rows={1}
               className="w-full resize-none bg-transparent text-sm sm:text-base text-neutral-100 placeholder:text-neutral-500 outline-none border-none focus:outline-none focus:ring-0 min-h-[44px] max-h-36 leading-relaxed"
             />
@@ -567,8 +967,10 @@ function ChatBotContent({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  className="size-7 rounded-lg text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/80 flex items-center justify-center transition-colors cursor-pointer"
-                  title="Add attachment"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isLoading || isUploadingAttachments}
+                  className="size-7 rounded-lg text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/80 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
+                  title="Upload ZIP, gambar, atau file lain"
                 >
                   <PlusIcon className="size-4" />
                 </button>
@@ -642,21 +1044,36 @@ function ChatBotContent({
               </div>
 
               <button
-                type="submit"
-                disabled={!input.trim() && !isLoading}
-                onClick={isLoading ? handleStop : () => handleSubmit()}
+                type={isLoading ? "button" : "submit"}
+                disabled={
+                  isLoading
+                    ? false
+                    : (!input.trim() && attachments.length === 0) ||
+                      isUploadingAttachments
+                }
+                onClick={isLoading ? handleStop : undefined}
                 className={cn(
                   "size-7 rounded-lg flex items-center justify-center transition-colors cursor-pointer",
                   isLoading
-                    ? "bg-neutral-700 text-neutral-200 hover:bg-neutral-600"
-                    : input.trim()
+                    ? "bg-neutral-700 text-neutral-100 hover:bg-neutral-600 shadow-sm"
+                    : isUploadingAttachments
+                    ? "bg-neutral-700 text-neutral-300"
+                    : input.trim() || attachments.length > 0
                     ? "bg-neutral-700 text-neutral-100 hover:bg-neutral-600 shadow-xs"
                     : "bg-neutral-800/60 text-neutral-500 cursor-not-allowed"
                 )}
-                title={isLoading ? "Stop generation" : "Send message (Enter)"}
+                title={
+                  isLoading
+                    ? "Hentikan pembuatan pesan (Stop)"
+                    : isUploadingAttachments
+                    ? "Mengunggah lampiran..."
+                    : "Send message (Enter)"
+                }
               >
                 {isLoading ? (
                   <SquareIcon className="size-3.5 fill-current" />
+                ) : isUploadingAttachments ? (
+                  <Loader2Icon className="size-3.5 animate-spin" />
                 ) : (
                   <CornerDownLeftIcon className="size-4" />
                 )}

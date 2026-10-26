@@ -85,6 +85,16 @@ export const botsRelations = relations(bots, ({ many }) => ({
   members: many(chatMembers),
 }));
 
+export const userSettings = pgTable("user_settings", {
+  userId: text("user_id").primaryKey().notNull(),
+  aiBaseUrl: text("ai_base_url"),
+  aiApiKey: text("ai_api_key"),
+  aiModel: text("ai_model"),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+});
+
 export const chatMembersRelations = relations(chatMembers, ({ one }) => ({
   chat: one(chats, {
     fields: [chatMembers.chatId],

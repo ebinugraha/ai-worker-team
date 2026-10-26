@@ -199,6 +199,18 @@ export const readFileTool = tool({
         }
         throw dlErr;
       }
+      const lower = path.toLowerCase();
+      const isImg = /\.(jpe?g|png|webp|gif|bmp|svg)$/i.test(lower);
+      if (isImg) {
+        return {
+          success: true,
+          path,
+          type: "image",
+          size: buffer.length,
+          note: `File '${path}' adalah gambar biner (${buffer.length} bytes). Untuk membukanya di desktop VNC sandbox gunakan tool openImage atau perintah open-image / feh, dan untuk mengambil screenshot gunakan showScreen.`,
+        };
+      }
+
       const rawContent = buffer.toString("utf-8");
       const content =
         rawContent.length > 25000
@@ -214,6 +226,34 @@ export const readFileTool = tool({
       return {
         success: false,
         path,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  },
+});
+
+export const openImageTool = tool({
+  description:
+    "Open and display an image file on the sandbox's GUI desktop screen (Display :0) so it appears in the live VNC desktop preview.",
+  inputSchema: z.object({
+    path: z.string().describe("Path to the image file in the sandbox (e.g. '/home/daytona/uploads/image.jpg')"),
+  }),
+  execute: async ({ path: imagePath }) => {
+    try {
+      const sandbox = await resolveSandboxForChat();
+      const cleanPath = imagePath.trim();
+      const res = await sandbox.process.executeCommand(
+        `open-image "${cleanPath}" || (DISPLAY=:0 feh --scale-down -B black -g 900x700 "${cleanPath}" >/dev/null 2>&1 & echo "feh started")`
+      );
+      return {
+        success: true,
+        path: cleanPath,
+        output: res.result.trim() || "Gambar berhasil dibuka di layar desktop sandbox.",
+      };
+    } catch (err) {
+      return {
+        success: false,
+        path: imagePath,
         error: err instanceof Error ? err.message : String(err),
       };
     }
@@ -577,6 +617,7 @@ export const sandboxTools = {
   readFile: readFileTool,
   writeFile: writeFileTool,
   listFiles: listFilesTool,
+  openImage: openImageTool,
   mouseClick: mouseClickTool,
   mouseScroll: mouseScrollTool,
   mouseMove: mouseMoveTool,

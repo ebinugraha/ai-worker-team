@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import {
   chat,
   defaultStorage,
@@ -6,15 +8,10 @@ import {
 import { createOpenAI } from "@ai-sdk/openai";
 import { type ModelMessage } from "@ai-sdk/provider-utils";
 import { stepCountIs, type JSONValue } from "ai";
-import { db, bots, chats, chatMembers } from "@/db";
+import { db, bots, chats, chatMembers, userSettings } from "@/db";
 import { eq } from "drizzle-orm";
 import { sandboxTools, sandboxContextStorage } from "./tools";
 import { getDaytonaClient } from "@/lib/daytona";
-
-const nineRouter = createOpenAI({
-  baseURL: process.env.NINE_ROUTER_BASE_URL,
-  apiKey: process.env.NINE_ROUTER_API_KEY,
-});
 
 export type ChatAgentUIMessage = InferChatUIMessageFromTools<
   typeof sandboxTools
@@ -24,12 +21,111 @@ export type ChatAgentUIMessage = InferChatUIMessageFromTools<
  * Strips massive base64 payloads and long stdout outputs from past messages in the conversation history.
  * Prevents exceeding the 1,048,576 token context window while preserving full tool call structure.
  */
-function sanitizeMessagesForModel(rawMessages: ModelMessage[]): ModelMessage[] {
+function isVisionModel(modelName: string): boolean {
+  const m = modelName.toLowerCase();
+  if (
+    m.includes("text-only") ||
+    m.includes("embedding") ||
+    m.includes("moderation") ||
+    m === "glm-5.3-flash-unsensored"
+  ) {
+    return false;
+  }
+  // All combo, router, gpt, gemini, claude, etc. support multimodal vision
+  return true;
+}
+
+function sanitizeMessagesForModel(
+  rawMessages: ModelMessage[],
+  modelName: string
+): ModelMessage[] {
+  const supportsVision = isVisionModel(modelName);
   // Take at most the last 30 turns if history has grown very large
   const windowed = rawMessages.length > 30 ? rawMessages.slice(-30) : rawMessages;
 
   return windowed.map((msg, idx) => {
     const isRecentTurn = idx >= windowed.length - 2;
+
+    if (msg.role === "user") {
+      const rawText =
+        typeof msg.content === "string"
+          ? msg.content
+          : Array.isArray(msg.content)
+          ? msg.content
+              .map((p) => (p.type === "text" ? p.text : ""))
+              .join("\n")
+          : "";
+
+      if (isRecentTurn && supportsVision && rawText.includes("<!--attachments:")) {
+        const match = rawText.match(/<!--attachments:(.*?)-->/);
+        if (match) {
+          try {
+            const parsedAtts = JSON.parse(match[1]);
+            const imageParts: Array<{
+              type: "file";
+              mediaType: string;
+              data: URL;
+            }> = [];
+
+            for (const att of parsedAtts) {
+              if (att.type === "image" && att.url) {
+                const cleanRel = att.url.startsWith("/")
+                  ? att.url.slice(1)
+                  : att.url;
+                const absPath = path.join(process.cwd(), "public", cleanRel);
+                if (fs.existsSync(absPath)) {
+                  const buf = fs.readFileSync(absPath);
+                  const ext = path.extname(absPath).toLowerCase();
+                  const mime =
+                    ext === ".png"
+                      ? "image/png"
+                      : ext === ".webp"
+                      ? "image/webp"
+                      : "image/jpeg";
+                  const dataUrl = `data:${mime};base64,${buf.toString("base64")}`;
+                  imageParts.push({
+                    type: "file",
+                    mediaType: mime,
+                    data: new URL(dataUrl),
+                  });
+                }
+              }
+            }
+
+            if (imageParts.length > 0) {
+              return {
+                ...msg,
+                content: [
+                  { type: "text" as const, text: rawText },
+                  ...imageParts,
+                ],
+              };
+            }
+          } catch (err) {
+            console.warn("Failed to inject image into user message:", err);
+          }
+        }
+      }
+
+      if (!supportsVision && Array.isArray(msg.content)) {
+        return {
+          ...msg,
+          content: msg.content.map((part) => {
+            if (part.type === "file" || part.type === "image") {
+              const fname =
+                "filename" in part && typeof part.filename === "string"
+                  ? part.filename
+                  : "gambar";
+              return {
+                type: "text" as const,
+                text: `[Lampiran gambar: "${fname}"]`,
+              };
+            }
+            return part;
+          }),
+        };
+      }
+    }
 
     if (msg.role === "tool" && Array.isArray(msg.content)) {
       return {
@@ -128,12 +224,15 @@ export const chatAgent = chat.agent({
       sandboxId: string | null;
     }> = [];
 
+    let ownerUserId: string | null = null;
+
     // 1. Check if chatId is a group chat in `chats` table
     if (chatId) {
       try {
         const [chatRecord] = await db
           .select({
             id: chats.id,
+            userId: chats.userId,
             name: chats.name,
             kind: chats.kind,
           })
@@ -141,23 +240,26 @@ export const chatAgent = chat.agent({
           .where(eq(chats.id, chatId))
           .limit(1);
 
-        if (chatRecord && chatRecord.kind === "group") {
-          isGroup = true;
-          chatName = chatRecord.name || "Group Chat";
+        if (chatRecord) {
+          ownerUserId = chatRecord.userId;
+          if (chatRecord.kind === "group") {
+            isGroup = true;
+            chatName = chatRecord.name || "Group Chat";
 
-          // Fetch all bot members in this group
-          groupMembers = await db
-            .select({
-              id: bots.id,
-              name: bots.name,
-              avatar: bots.avatar,
-              job: bots.job,
-              instruction: bots.instruction,
-              sandboxId: bots.sandboxId,
-            })
-            .from(chatMembers)
-            .innerJoin(bots, eq(chatMembers.botId, bots.id))
-            .where(eq(chatMembers.chatId, chatId));
+            // Fetch all bot members in this group
+            groupMembers = await db
+              .select({
+                id: bots.id,
+                name: bots.name,
+                avatar: bots.avatar,
+                job: bots.job,
+                instruction: bots.instruction,
+                sandboxId: bots.sandboxId,
+              })
+              .from(chatMembers)
+              .innerJoin(bots, eq(chatMembers.botId, bots.id))
+              .where(eq(chatMembers.chatId, chatId));
+          }
         }
       } catch (err) {
         console.error("Failed to query group chat record:", err);
@@ -184,6 +286,7 @@ export const chatAgent = chat.agent({
           const [bot] = await db
             .select({
               id: bots.id,
+              userId: bots.userId,
               name: bots.name,
               avatar: bots.avatar,
               job: bots.job,
@@ -193,7 +296,10 @@ export const chatAgent = chat.agent({
             .from(bots)
             .where(eq(bots.id, requestedBotId))
             .limit(1);
-          activeBot = bot ?? null;
+          if (bot) {
+            activeBot = bot;
+            if (!ownerUserId) ownerUserId = bot.userId;
+          }
         } catch (err) {
           console.error("Failed to load requested bot details:", err);
         }
@@ -209,6 +315,7 @@ export const chatAgent = chat.agent({
           const [bot] = await db
             .select({
               id: bots.id,
+              userId: bots.userId,
               name: bots.name,
               avatar: bots.avatar,
               job: bots.job,
@@ -218,7 +325,10 @@ export const chatAgent = chat.agent({
             .from(bots)
             .where(eq(bots.id, chatId))
             .limit(1);
-          activeBot = bot ?? null;
+          if (bot) {
+            activeBot = bot;
+            if (!ownerUserId) ownerUserId = bot.userId;
+          }
         } catch (err) {
           console.error("Failed to load direct bot details:", err);
         }
@@ -339,6 +449,7 @@ You have access to the following tools:
    - \`readFile\`: Read file contents from the sandbox filesystem (e.g. 'MEMORY.md').
    - \`writeFile\`: Create or update files in the sandbox filesystem (e.g. 'MEMORY.md').
    - \`listFiles\`: List files and directory structures in the sandbox.
+   - \`openImage\`: Open and display an image on the sandbox desktop screen (:0) to show it on the live VNC preview.
    - \`mouseClick\`, \`mouseMove\`, \`mouseScroll\`: GUI mouse controls.
    - \`keyboardType\`, \`keyboardPress\`: GUI keyboard controls.
    - \`viewScreen\`: Internal screenshot for your visual perception (never render raw base64 image in chat).
@@ -348,7 +459,22 @@ You have access to the following tools:
 CRITICAL RULES:
 - When a handoff is warranted, call the \`handoff\` tool before concluding your turn.
 - When the user asks to see the screen or for a screenshot, ALWAYS call \`showScreen\`.
-- Communicate clearly, professionally, and stay true to your personality.`);
+- Communicate clearly, professionally, and stay true to your personality.
+
+=== PANDUAN UTAMA: ANALISIS VISUAL GAMBAR & PENGGUNAAN TOOLS ===
+1. ANALISIS GAMBAR LANGSUNG (MULTIMODAL):
+   - Jika pengguna melampirkan gambar/foto (misal: "siapa artis ini?", "analisis gambar ini", "ada error apa di screenshot ini?"):
+   - Anda TELAH MENERIMA dan DAPAT MELIHAT gambar tersebut secara langsung melalui token visual multimodal Anda!
+   - JANGAN PERNAH menjalankan perintah bash untuk mencari file gambar di filesystem sandbox (seperti \`find / -name "*image*"\` atau \`find /tmp\`).
+   - Langsung amati gambar tersebut, kenali objek/orang/teks di dalamnya, dan berikan jawaban yang lengkap, detail, dan solutif.
+
+2. DOKUMEN & FILE SANDBOX:
+   - Jika pengguna mengunggah dokumen (PDF, kode, CSV, JSON), isi teksnya telah disertakan dalam pesan atau di \`/home/daytona/uploads/\`.
+
+3. TIDAK BOLEH PASRAH / BERHENTI TANPA JAWABAN (ANTI-GHOSTING):
+   - Anda DILARANG KERAS pasrah atau menyerah jika suatu tool gagal atau perintah tidak ditemukan di sandbox.
+   - Jika ada tool yang gagal atau tidak terinstall, jangan mengulang perintah yang sama terus-menerus.
+   - Berikan kesimpulan dan jawaban akhir yang jelas, ramah, dan tuntas kepada pengguna dalam Bahasa Indonesia. JANGAN PERNAH mengakhiri giliran tanpa teks feedback!`);
     } else if (activeBot) {
       systemPromptParts.push(`Your name is ${activeBot.name}.
 Your role and job: ${activeBot.job}.
@@ -376,12 +502,20 @@ ${botMemoryContent}
 Use this context to personalize your interactions and honor the user's past preferences.`);
       }
 
-      systemPromptParts.push(`=== AVAILABLE TOOLS & CAPABILITIES ===
+      systemPromptParts.push(`=== FILE UPLOADS & USER ATTACHMENTS (SANDBOX STORAGE) ===
+When the user attaches or uploads files (ZIP archives, screenshots, code, data files):
+- The files are stored directly in your Daytona Linux sandbox under \`/home/daytona/uploads/\`.
+- ZIP archives are automatically extracted into their respective directories under \`/home/daytona/uploads/\`.
+- You can freely inspect, execute, compile, test, or modify these files using \`bash\`, \`readFile\`, \`writeFile\`, and \`listFiles\` tools.
+- Because the files reside directly on your disk, prompt tokens are kept minimal while giving you full access to complete projects and datasets!
+
+=== AVAILABLE TOOLS & CAPABILITIES ===
 You have full computer and sandbox access via your tools:
 - bash: Execute terminal commands inside the Linux environment.
 - readFile: Read file contents from the sandbox filesystem (e.g. 'MEMORY.md').
 - writeFile: Create or update files in the sandbox filesystem (e.g. 'MEMORY.md').
 - listFiles: List files and directory structures.
+- openImage: Open and display an image on the sandbox desktop screen (:0) to show it on the live VNC preview.
 - mouseClick: Click on screen coordinates.
 - mouseScroll: Scroll the mouse wheel.
 - mouseMove: Position the mouse cursor.
@@ -396,13 +530,27 @@ Note: You are in a direct 1-on-1 private chat with the user. The \`handoff\` too
 CRITICAL INSTRUCTIONS:
 1. All your sandbox tools are FULLY ACTIVE and operational right now. NEVER claim that you do not have tools or cannot execute actions.
 2. When the user asks for a screenshot or asks to see what is on screen (e.g. 'berikan screenshot', 'tampilkan layar', 'lihat layar', 'show screen'), ALWAYS call the \`showScreen\` tool immediately.
-3. Stay in character, think step by step when using computer tools, and communicate clearly.`);
+3. Stay in character, think step by step when using computer tools, and communicate clearly.
+
+=== PANDUAN UTAMA: ANALISIS VISUAL GAMBAR & PENGGUNAAN TOOLS ===
+1. ANALISIS GAMBAR LANGSUNG (MULTIMODAL):
+   - Jika pengguna melampirkan gambar/foto (misal: "siapa artis ini?", "analisis gambar ini", "ada error apa di screenshot ini?"):
+   - Anda TELAH MENERIMA dan DAPAT MELIHAT gambar tersebut secara langsung melalui token visual multimodal Anda!
+   - JANGAN PERNAH menjalankan perintah bash untuk mencari file gambar di filesystem sandbox (seperti \`find / -name "*image*"\` atau \`find /tmp\`).
+   - Langsung amati gambar tersebut, kenali objek/orang/teks di dalamnya, dan berikan jawaban yang lengkap, detail, dan solutif.
+
+2. DOKUMEN & FILE SANDBOX:
+   - Jika pengguna mengunggah dokumen (PDF, kode, CSV, JSON), isi teksnya telah disertakan dalam pesan atau di \`/home/daytona/uploads/\`.
+
+3. TIDAK BOLEH PASRAH / BERHENTI TANPA JAWABAN (ANTI-GHOSTING):
+   - Anda DILARANG KERAS pasrah atau menyerah jika suatu tool gagal atau perintah tidak ditemukan di sandbox.
+   - Jika ada tool yang gagal atau tidak terinstall, jangan mengulang perintah yang sama terus-menerus.
+   - Berikan kesimpulan dan jawaban akhir yang jelas, ramah, dan tuntas kepada pengguna dalam Bahasa Indonesia. JANGAN PERNAH mengakhiri giliran tanpa teks feedback!`);
     } else {
       systemPromptParts.push("You are a helpful and intelligent AI teammate.");
     }
 
     const systemInstruction = systemPromptParts.join("\n\n");
-    const sanitizedMessages = sanitizeMessagesForModel(messages);
 
     if (activeBot) {
       chat.setUIMessageStreamOptions({
@@ -413,6 +561,40 @@ CRITICAL INSTRUCTIONS:
       });
     }
 
+    // Resolve dynamic AI provider and model configured by the user
+    let activeAiBaseUrl =
+      process.env.AI_BASE_URL ||
+      process.env.NINE_ROUTER_BASE_URL ||
+      "https://omoapicall.web.id/v1";
+    let activeAiApiKey =
+      process.env.AI_API_KEY || process.env.NINE_ROUTER_API_KEY || "";
+    let activeAiModel = process.env.AI_MODEL || "glm-5.3-flashh";
+
+    if (ownerUserId) {
+      try {
+        const [setting] = await db
+          .select()
+          .from(userSettings)
+          .where(eq(userSettings.userId, ownerUserId))
+          .limit(1);
+
+        if (setting) {
+          if (setting.aiBaseUrl) activeAiBaseUrl = setting.aiBaseUrl;
+          if (setting.aiApiKey) activeAiApiKey = setting.aiApiKey;
+          if (setting.aiModel) activeAiModel = setting.aiModel;
+        }
+      } catch (err) {
+        console.error("Failed to query userSettings for owner:", err);
+      }
+    }
+
+    const sanitizedMessages = sanitizeMessagesForModel(messages, activeAiModel);
+
+    const turnAiClient = createOpenAI({
+      baseURL: activeAiBaseUrl,
+      apiKey: activeAiApiKey,
+    });
+
     return sandboxContextStorage.run(
       {
         chatId: chatId ?? "",
@@ -422,7 +604,7 @@ CRITICAL INSTRUCTIONS:
       },
       () =>
         streamText({
-          model: nineRouter.chat("my-combo-9router"),
+          model: turnAiClient.chat(activeAiModel),
           system: systemInstruction,
           messages: sanitizedMessages,
           tools,

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
-import { PlusIcon, SearchIcon, UsersIcon } from "lucide-react";
+import { PlusIcon, SearchIcon, UsersIcon, SettingsIcon } from "lucide-react";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
   Sidebar,
@@ -127,7 +127,15 @@ function SidebarUserButton() {
             "text-sm font-medium text-sidebar-foreground text-left truncate max-w-[150px] order-2 group-data-[collapsible=icon]:hidden",
         },
       }}
-    />
+    >
+      <UserButton.MenuItems>
+        <UserButton.Link
+          label="Settings"
+          href="/settings"
+          labelIcon={<SettingsIcon className="size-4" />}
+        />
+      </UserButton.MenuItems>
+    </UserButton>
   );
 }
 
@@ -344,17 +352,28 @@ export function SidebarMenu({
 
         {/* Footer: User profile with Clerk UserButton */}
         <SidebarFooter className="border-t border-sidebar-border p-3 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
-          <div className="flex items-center w-full group-data-[collapsible=icon]:justify-center">
-            <React.Suspense
-              fallback={
-                <div className="flex items-center gap-2.5 p-[1.5px] group-data-[collapsible=icon]:justify-center">
-                  <Skeleton className="size-8 rounded-full shrink-0" />
-                  <Skeleton className="h-4 w-28 rounded group-data-[collapsible=icon]:hidden" />
-                </div>
-              }
+          <div className="flex items-center justify-between w-full group-data-[collapsible=icon]:justify-center gap-1">
+            <div className="flex-1 min-w-0">
+              <React.Suspense
+                fallback={
+                  <div className="flex items-center gap-2.5 p-[1.5px] group-data-[collapsible=icon]:justify-center">
+                    <Skeleton className="size-8 rounded-full shrink-0" />
+                    <Skeleton className="h-4 w-28 rounded group-data-[collapsible=icon]:hidden" />
+                  </div>
+                }
+              >
+                <SidebarUserButton />
+              </React.Suspense>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => router.push("/settings")}
+              className="text-muted-foreground hover:text-foreground shrink-0 group-data-[collapsible=icon]:hidden cursor-pointer"
+              title="Pengaturan Model AI"
             >
-              <SidebarUserButton />
-            </React.Suspense>
+              <SettingsIcon className="size-4" />
+            </Button>
           </div>
         </SidebarFooter>
 
