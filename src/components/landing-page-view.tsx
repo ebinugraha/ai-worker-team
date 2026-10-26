@@ -166,19 +166,10 @@ export function LandingPageView() {
           <div className="flex items-center gap-2.5">
             <Link href="/sign-in">
               <Button
-                variant="ghost"
                 size="sm"
-                className="h-8 rounded-full px-4 text-xs font-medium text-neutral-300 hover:text-white hover:bg-neutral-900 cursor-pointer"
+                className="h-8 rounded-full px-4 text-xs font-medium text-neutral-200 bg-neutral-900 hover:bg-neutral-800 hover:text-white border border-neutral-800 transition-colors cursor-pointer"
               >
                 Sign In
-              </Button>
-            </Link>
-            <Link href="/chat">
-              <Button
-                size="sm"
-                className="h-8 rounded-full px-4 text-xs font-semibold bg-white text-black hover:bg-neutral-200 transition-colors shadow-xs cursor-pointer"
-              >
-                Open Workspace
               </Button>
             </Link>
           </div>
@@ -253,7 +244,7 @@ export function LandingPageView() {
             <div className="flex items-start gap-3">
               <span className="text-neutral-500 select-none">user@genichiro:~$</span>
               <span className="text-white">
-                Analisis arsip VPS1-HERMES-MIGRATION-20261025.zip dan verifikasi konfigurasi Docker-nya
+                Audit repositori layanan backend, jalankan vulnerability scan, dan verifikasi test suite di sandbox
               </span>
             </div>
 
@@ -264,36 +255,33 @@ export function LandingPageView() {
                 <span className="font-semibold text-neutral-200">
                   Ada (Security & Systems Researcher)
                 </span>
-                <span className="text-neutral-500">· Thought for 1.8s</span>
+                <span className="text-neutral-500">· Thought for 1.4s</span>
               </div>
               <div className="text-neutral-400 text-xs pl-5.5 leading-relaxed">
-                Berkas ZIP 10.48 MB telah otomatis disinkronkan dan diekstrak ke{" "}
-                <span className="text-neutral-200">/home/daytona/uploads/VPS1-HERMES-MIGRATION-20261025</span>.
-                Memeriksa struktur Docker Compose dan script deployment.
+                Mengakses sandbox Linux terisolasi. Melakukan static analysis terhadap codebase, memeriksa audit dependensi, dan menjalankan automated integration test.
               </div>
             </div>
 
             {/* Simulated Tool Execution */}
             <div className="rounded-lg bg-black/80 border border-neutral-800/80 p-3 text-xs space-y-1.5">
               <div className="text-neutral-400 flex items-center justify-between">
-                <span>▸ bashTool: cd /home/daytona/uploads/VPS1-HERMES-MIGRATION-20261025 && ls -la</span>
+                <span>▸ bashTool: npm audit --audit-level=high && npm test</span>
                 <span className="text-emerald-400">exitCode: 0</span>
               </div>
               <div className="text-neutral-500 text-[11px]">
-                drwxr-xr-x 2 daytona daytona 4096 Oct 26 12:40 docker-compose.yml<br />
-                -rw-r--r-- 1 daytona daytona 1842 Oct 26 12:40 Dockerfile<br />
-                -rwxr-xr-x 1 daytona daytona 3420 Oct 26 12:40 deploy.sh
+                ✓ 48 test suites passed, 0 vulnerabilities found.<br />
+                ✓ Sandbox container listening on http://localhost:3000<br />
+                ✓ Live visual desktop active on display :0
               </div>
             </div>
 
             {/* Agent Final Output */}
             <div className="text-neutral-200 text-xs sm:text-sm pl-2 border-l-2 border-emerald-500/80">
               <p className="font-semibold text-white mb-1">
-                Ada: Verifikasi Selesai.
+                Ada: Audit & Verifikasi Berhasil.
               </p>
               <p className="text-neutral-400 leading-relaxed">
-                Seluruh service kontainer tervalidasi. Endpoint konfigurasi aman, tidak ditemukan
-                port berbahaya yang terekspos. Sandbox siap menjalankan deployment staging.
+                Seluruh 48 skenario pengujian berhasil dilewati tanpa celah keamanan. Service backend berjalan stabil di dalam sandbox Daytona dan siap untuk deployment.
               </p>
             </div>
           </div>
@@ -613,101 +601,6 @@ export function LandingPageView() {
               </div>
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* Getting Started CTA Cards (x.ai style) */}
-      <section className="py-20 px-4 sm:px-6 max-w-7xl mx-auto border-t border-neutral-900">
-        <div className="text-center max-w-2xl mx-auto mb-12">
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white mb-3">
-            Choose how to get started
-          </h2>
-          <p className="text-sm sm:text-base text-neutral-400 font-normal">
-            Deploy your personal agent workspace or scale across enterprise engineering teams.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-          {/* Free / Developer Card */}
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-8 flex flex-col justify-between hover:border-neutral-700 transition-colors">
-            <div>
-              <h3 className="text-xl font-semibold text-white mb-1">
-                Developer Workspace
-              </h3>
-              <p className="text-xs text-neutral-400 mb-6">
-                Instant access to autonomous coding agents and sandbox testing.
-              </p>
-
-              <div className="border-t border-neutral-800/80 my-4" />
-
-              <ul className="space-y-3 text-xs text-neutral-300 font-medium mb-8">
-                <li className="flex items-center gap-2.5">
-                  <CheckIcon className="size-4 text-emerald-400 shrink-0" />
-                  Unlimited 1-on-1 bot conversations
-                </li>
-                <li className="flex items-center gap-2.5">
-                  <CheckIcon className="size-4 text-emerald-400 shrink-0" />
-                  Custom AI Provider & Model integration (9router / GLM / Gemini)
-                </li>
-                <li className="flex items-center gap-2.5">
-                  <CheckIcon className="size-4 text-emerald-400 shrink-0" />
-                  65,536 token output & 80 tool steps
-                </li>
-                <li className="flex items-center gap-2.5">
-                  <CheckIcon className="size-4 text-emerald-400 shrink-0" />
-                  Up to 100 MB binary & ZIP file ingestion
-                </li>
-              </ul>
-            </div>
-
-            <Link href="/sign-up" className="w-full">
-              <Button className="w-full h-10 rounded-full bg-white text-black font-semibold text-xs hover:bg-neutral-200 transition-colors cursor-pointer">
-                Start Building Free
-              </Button>
-            </Link>
-          </div>
-
-          {/* Team / Multi-Agent Card */}
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-8 flex flex-col justify-between hover:border-neutral-700 transition-colors">
-            <div>
-              <h3 className="text-xl font-semibold text-white mb-1">
-                Multi-Agent Team & Cloud Sandbox
-              </h3>
-              <p className="text-xs text-neutral-400 mb-6">
-                Full Daytona cluster isolation with live VNC and group chat handoffs.
-              </p>
-
-              <div className="border-t border-neutral-800/80 my-4" />
-
-              <ul className="space-y-3 text-xs text-neutral-300 font-medium mb-8">
-                <li className="flex items-center gap-2.5">
-                  <CheckIcon className="size-4 text-emerald-400 shrink-0" />
-                  Multi-agent group collaboration & handoff routines
-                </li>
-                <li className="flex items-center gap-2.5">
-                  <CheckIcon className="size-4 text-emerald-400 shrink-0" />
-                  Live Daytona Linux cloud sandboxes with root access
-                </li>
-                <li className="flex items-center gap-2.5">
-                  <CheckIcon className="size-4 text-emerald-400 shrink-0" />
-                  Real-time visual VNC desktop streaming & screenshot zoom
-                </li>
-                <li className="flex items-center gap-2.5">
-                  <CheckIcon className="size-4 text-emerald-400 shrink-0" />
-                  Trigger.dev continuous execution & multi-worker resilience
-                </li>
-              </ul>
-            </div>
-
-            <Link href="/chat" className="w-full">
-              <Button
-                variant="outline"
-                className="w-full h-10 rounded-full border-neutral-700 text-white hover:bg-neutral-900 font-medium text-xs transition-colors cursor-pointer"
-              >
-                Open Multi-Agent Workspace
-              </Button>
-            </Link>
-          </div>
         </div>
       </section>
 
