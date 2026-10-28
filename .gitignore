@@ -48,3 +48,6 @@ next-env.d.ts
 .hermes/
 public/uploads/*
 !public/uploads/.gitkeep
+__pycache__/
+*.pyc
+
