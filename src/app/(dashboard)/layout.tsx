@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { getUserBotsAction } from "@/action/bot";
 import { getUserGroupChatsAction } from "@/action/chat";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
@@ -37,6 +38,7 @@ function SidebarFallback() {
 }
 
 async function AsyncSidebar() {
+  await connection();
   const [botsResult, groupChatsResult] = await Promise.all([
     getUserBotsAction(),
     getUserGroupChatsAction(),

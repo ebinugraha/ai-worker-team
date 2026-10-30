@@ -329,7 +329,20 @@ export async function getChatWithMembersAction(
     }
 
     return { success: false, error: "Obrolan tidak ditemukan" };
-  } catch (err) {
+  } catch (err: unknown) {
+    if (
+      err &&
+      typeof err === "object" &&
+      ("digest" in err ||
+        ("cause" in err &&
+          err.cause &&
+          typeof err.cause === "object" &&
+          "digest" in err.cause) ||
+        (err instanceof Error &&
+          err.message.includes("During prerendering")))
+    ) {
+      throw err;
+    }
     console.error("Failed to fetch chat details:", err);
     return { success: false, error: "Gagal memuat detail obrolan" };
   }

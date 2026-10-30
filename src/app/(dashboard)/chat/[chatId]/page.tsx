@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { getChatWithMembersAction } from "@/action/chat";
 import { getUserBotsAction } from "@/action/bot";
 import { ChatBotView } from "@/components/chat-bot-view";
@@ -32,6 +33,7 @@ function ChatPageSkeleton() {
 }
 
 async function ChatContent({ params }: ChatPageProps) {
+  await connection();
   const { chatId } = await params;
   const [result, botsResult] = await Promise.all([
     getChatWithMembersAction(chatId),
