@@ -4,6 +4,9 @@ import { auth as clerkAuth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { db, userSettings } from "@/db";
 import { eq } from "drizzle-orm";
+import { encryptApiKey, decryptApiKey } from "@/lib/encryption";
+
+export { encryptApiKey, decryptApiKey };
 
 export interface UserSettingsData {
   aiBaseUrl: string;
@@ -57,11 +60,13 @@ export async function getUserSettingsAction(): Promise<
       };
     }
 
+    const resolvedApiKey = decryptApiKey(setting.aiApiKey) || defaultApiKey;
+
     return {
       success: true,
       data: {
         aiBaseUrl: setting.aiBaseUrl || defaultBaseUrl,
-        aiApiKey: setting.aiApiKey || defaultApiKey,
+        aiApiKey: resolvedApiKey,
         aiModel: setting.aiModel || defaultModel,
         isConfigured: true,
       },
@@ -100,12 +105,14 @@ export async function saveUserSettingsAction(input: {
       return { success: false, error: "Model wajib dipilih atau diisi." };
     }
 
+    const encryptedKey = encryptApiKey(trimmedApiKey);
+
     await db
       .insert(userSettings)
       .values({
         userId,
         aiBaseUrl: trimmedBaseUrl,
-        aiApiKey: trimmedApiKey,
+        aiApiKey: encryptedKey,
         aiModel: trimmedModel,
         updatedAt: new Date(),
       })
@@ -113,7 +120,7 @@ export async function saveUserSettingsAction(input: {
         target: userSettings.userId,
         set: {
           aiBaseUrl: trimmedBaseUrl,
-          aiApiKey: trimmedApiKey,
+          aiApiKey: encryptedKey,
           aiModel: trimmedModel,
           updatedAt: new Date(),
         },
@@ -155,7 +162,7 @@ export async function checkAiModelsAction(input: {
   aiApiKey: string;
 }): Promise<ActionResult<ModelCheckResult>> {
   const trimmedBaseUrl = input.aiBaseUrl.trim().replace(/\/+$/, "");
-  const trimmedApiKey = input.aiApiKey.trim();
+  const trimmedApiKey = decryptApiKey(input.aiApiKey.trim());
 
   if (!trimmedBaseUrl) {
     return { success: false, error: "Base URL wajib diisi untuk memeriksa model." };
@@ -247,6 +254,179 @@ export async function checkAiModelsAction(input: {
   }
 }
 
+export interface ModelTestConnectionResult {
+  latencyMs: number;
+  supportsToolCalling: boolean;
+  message: string;
+  toolCallSample?: string;
+}
+
+/**
+ * Validates connection, authentication, and tool calling capabilities of the user's custom model.
+ */
+export async function testModelConnection(input: {
+  aiBaseUrl: string;
+  aiApiKey: string;
+  aiModel: string;
+}): Promise<ActionResult<ModelTestConnectionResult>> {
+  const trimmedBaseUrl = input.aiBaseUrl.trim().replace(/\/+$/, "");
+  const trimmedApiKey = decryptApiKey(input.aiApiKey.trim());
+  const trimmedModel = input.aiModel.trim();
+
+  if (!trimmedBaseUrl) {
+    return {
+      success: false,
+      error: "Base URL wajib diisi untuk menguji model.",
+    };
+  }
+  if (!trimmedModel) {
+    return {
+      success: false,
+      error: "Model wajib dipilih atau diisi.",
+    };
+  }
+
+  const startTime = Date.now();
+  const endpoint = `${trimmedBaseUrl}/chat/completions`;
+
+  try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    };
+    if (trimmedApiKey) {
+      headers["Authorization"] = `Bearer ${trimmedApiKey}`;
+    }
+
+    const testTool = {
+      type: "function",
+      function: {
+        name: "test_tool_ping",
+        description: "Tool uji untuk memeriksa kapabilitas tool calling model AI",
+        parameters: {
+          type: "object",
+          properties: {
+            ping: {
+              type: "string",
+              description: "Nilai ping uji coba",
+            },
+          },
+          required: ["ping"],
+        },
+      },
+    };
+
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: trimmedModel,
+        messages: [
+          {
+            role: "user",
+            content:
+              "Uji coba koneksi: Tolong panggil fungsi test_tool_ping dengan parameter ping='connection_test_ok'.",
+          },
+        ],
+        tools: [testTool],
+        tool_choice: "auto",
+        max_tokens: 150,
+      }),
+      signal: AbortSignal.timeout(25000),
+    });
+
+    const latencyMs = Date.now() - startTime;
+
+    if (!res.ok) {
+      let bodyText = "";
+      try {
+        bodyText = await res.text();
+      } catch {
+        // ignore
+      }
+
+      let errorDetail = bodyText.slice(0, 200);
+      try {
+        const parsed = JSON.parse(bodyText);
+        if (parsed.error?.message) {
+          errorDetail = parsed.error.message;
+        }
+      } catch {
+        // ignore
+      }
+
+      return {
+        success: false,
+        error: `HTTP ${res.status} (${res.statusText}): ${errorDetail}`,
+        data: {
+          latencyMs,
+          supportsToolCalling: false,
+          message: `Koneksi gagal dengan status ${res.status}`,
+        },
+      };
+    }
+
+    const rawText = await res.text();
+    let toolCallsFound = false;
+    let toolCallSample = "";
+    let contentSample = "";
+
+    try {
+      const data = JSON.parse(rawText);
+      const choice = data.choices?.[0];
+      const message = choice?.message;
+      if (Array.isArray(message?.tool_calls) && message.tool_calls.length > 0) {
+        toolCallsFound = true;
+        toolCallSample = JSON.stringify(message.tool_calls[0]);
+      }
+      if (typeof message?.content === "string") {
+        contentSample = message.content;
+      }
+    } catch {
+      if (rawText.includes("test_tool_ping") || rawText.includes("tool_calls")) {
+        toolCallsFound = true;
+        toolCallSample = "Tool call terdeteksi dalam respons streaming";
+      }
+    }
+
+    if (toolCallsFound) {
+      return {
+        success: true,
+        data: {
+          latencyMs,
+          supportsToolCalling: true,
+          toolCallSample,
+          message: `Koneksi sukses (${latencyMs}ms)! Model '${trimmedModel}' terbukti mendukung native tool calling.`,
+        },
+      };
+    } else {
+      return {
+        success: true,
+        data: {
+          latencyMs,
+          supportsToolCalling: false,
+          toolCallSample: contentSample || rawText.slice(0, 150),
+          message: `Koneksi berhasil (${latencyMs}ms), namun model merespons dengan teks biasa tanpa memanggil tool. Pastikan model mendukung function calling.`,
+        },
+      };
+    }
+  } catch (err: unknown) {
+    const latencyMs = Date.now() - startTime;
+    return {
+      success: false,
+      error:
+        err instanceof Error
+          ? `Gagal terhubung ke model: ${err.message}`
+          : "Gagal terhubung ke model AI.",
+      data: {
+        latencyMs,
+        supportsToolCalling: false,
+        message: "Request timeout atau terjadi error jaringan.",
+      },
+    };
+  }
+}
+
 export async function testAiPromptAction(input: {
   aiBaseUrl: string;
   aiApiKey: string;
@@ -259,7 +439,7 @@ export async function testAiPromptAction(input: {
   }>
 > {
   const trimmedBaseUrl = input.aiBaseUrl.trim().replace(/\/+$/, "");
-  const trimmedApiKey = input.aiApiKey.trim();
+  const trimmedApiKey = decryptApiKey(input.aiApiKey.trim());
   const trimmedModel = input.aiModel.trim();
   const prompt = input.prompt.trim() || "Halo, perkenalkan dirimu secara singkat.";
 

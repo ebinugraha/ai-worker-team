@@ -5,18 +5,17 @@ import {
   saveUserSettingsAction,
   checkAiModelsAction,
   testAiPromptAction,
+  testModelConnection,
   type UserSettingsData,
 } from "@/action/settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
   CheckIcon,
   RefreshCwIcon,
   ServerIcon,
-  SparklesIcon,
   EyeIcon,
   EyeOffIcon,
   SendIcon,
@@ -27,7 +26,8 @@ import {
   RotateCcwIcon,
   CheckCircle2Icon,
   AlertCircleIcon,
-  BotIcon,
+  WrenchIcon,
+  TerminalIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -111,6 +111,57 @@ export function SettingsView({ initialSettings, initialModels = [] }: SettingsVi
     latencyMs?: number;
     error?: string;
   } | null>(null);
+
+  // Model connection & tool calling test states
+  const [isTestingModel, setIsTestingModel] = React.useState(false);
+  const [testModelResult, setTestModelResult] = React.useState<{
+    success: boolean;
+    supportsToolCalling?: boolean;
+    latencyMs?: number;
+    message: string;
+    toolCallSample?: string;
+  } | null>(null);
+
+  const handleTestModel = async () => {
+    if (!baseUrl.trim() || !model.trim()) return;
+    setIsTestingModel(true);
+    setTestModelResult(null);
+
+    try {
+      const res = await testModelConnection({
+        aiBaseUrl: baseUrl,
+        aiApiKey: apiKey,
+        aiModel: model,
+      });
+
+      if (res.success && res.data) {
+        setTestModelResult({
+          success: true,
+          supportsToolCalling: res.data.supportsToolCalling,
+          latencyMs: res.data.latencyMs,
+          message: res.data.message,
+          toolCallSample: res.data.toolCallSample,
+        });
+      } else {
+        setTestModelResult({
+          success: false,
+          supportsToolCalling: false,
+          message: res.error || "Gagal menguji model.",
+        });
+      }
+    } catch (err: unknown) {
+      setTestModelResult({
+        success: false,
+        supportsToolCalling: false,
+        message:
+          err instanceof Error
+            ? err.message
+            : "Terjadi kesalahan saat menguji model.",
+      });
+    } finally {
+      setIsTestingModel(false);
+    }
+  };
 
   const handleCheckModels = React.useCallback(
     async (urlToCheck = baseUrl, keyToCheck = apiKey) => {
@@ -257,54 +308,50 @@ export function SettingsView({ initialSettings, initialModels = [] }: SettingsVi
   }, [fetchedModels]);
 
   return (
-    <div className="flex-1 w-full max-w-5xl mx-auto p-4 sm:p-6 md:p-8 space-y-6 overflow-y-auto">
-      {/* Header section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-5">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <SidebarTrigger className="md:hidden size-8 -ml-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 cursor-pointer" />
-            <div className="size-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-              <BotIcon className="size-5" />
+    <div className="flex-1 w-full max-w-7xl mx-auto p-6 sm:p-8 md:p-10 space-y-8 overflow-y-auto">
+      {/* Top Header & Breadcrumb */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
+        <div className="flex items-center gap-2.5">
+          <SidebarTrigger className="md:hidden size-8 -ml-1 rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 cursor-pointer" />
+          <div>
+            <div className="flex items-center gap-2 text-xs font-mono text-zinc-500 mb-0.5">
+              <span>workspace</span>
+              <span>/</span>
+              <span className="text-zinc-300">settings</span>
+              <span>/</span>
+              <span className="text-zinc-100 font-semibold">models</span>
             </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
-                Pengaturan Model & Agent AI
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Kustomisasi provider, API key, dan model AI yang digunakan oleh seluruh agen workspace Anda.
-              </p>
-            </div>
+            <h1 className="text-lg sm:text-xl font-semibold tracking-tight text-zinc-100">
+              AI Model & Provider Configuration
+            </h1>
           </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <Badge
-            variant={initialSettings.isConfigured ? "default" : "secondary"}
-            className="h-7 px-3 text-xs gap-1.5"
-          >
-            <ShieldCheckIcon className="size-3.5" />
-            {initialSettings.isConfigured ? "Custom Terpasang" : "Default Mode"}
-          </Badge>
-          <Badge variant="outline" className="h-7 px-3 text-xs gap-1.5 border-border/60">
-            <CpuIcon className="size-3.5 text-primary" />
-            Model Aktif: <span className="font-mono text-foreground">{model}</span>
-          </Badge>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-900 border border-zinc-800 text-xs font-mono text-zinc-300">
+            <ShieldCheckIcon className="size-3.5 text-emerald-400" />
+            <span>{initialSettings.isConfigured ? "Custom Provider" : "Default Mode"}</span>
+          </div>
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-900 border border-zinc-800 text-xs font-mono text-zinc-400">
+            <CpuIcon className="size-3.5 text-zinc-300" />
+            <span className="truncate max-w-[150px]">{model}</span>
+          </div>
         </div>
       </div>
 
-      {/* Preset providers selection */}
-      <div className="space-y-3">
+      {/* Preset Quick Select Bar */}
+      <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-foreground flex items-center gap-2">
-            <LayersIcon className="size-4 text-primary" />
-            Pilih Provider Cepat (Preset)
+          <span className="text-xs font-mono text-zinc-400 flex items-center gap-1.5 uppercase tracking-wider">
+            <LayersIcon className="size-3.5 text-zinc-400" />
+            Provider Presets
           </span>
-          <span className="text-xs text-muted-foreground">
-            Klik salah satu untuk otomatis mengisi endpoint & default model
+          <span className="text-[11px] font-mono text-zinc-500 hidden sm:inline">
+            Click to auto-populate endpoint & default model
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
           {PRESET_PROVIDERS.map((preset) => {
             const isSelected = baseUrl === preset.baseUrl;
             return (
@@ -313,20 +360,20 @@ export function SettingsView({ initialSettings, initialModels = [] }: SettingsVi
                 type="button"
                 onClick={() => handleApplyPreset(preset)}
                 className={cn(
-                  "flex flex-col text-left p-3 rounded-xl border transition-all cursor-pointer outline-none select-none",
+                  "flex flex-col text-left p-3 rounded-md border transition-colors cursor-pointer outline-none select-none",
                   isSelected
-                    ? "bg-primary/10 border-primary text-foreground shadow-xs ring-1 ring-primary/40"
-                    : "bg-card border-border/60 hover:bg-accent/60 hover:border-border text-foreground"
+                    ? "bg-zinc-900 border-zinc-500 text-zinc-100 ring-1 ring-zinc-500"
+                    : "bg-zinc-950/60 border-zinc-800 hover:bg-zinc-900/50 hover:border-zinc-700 text-zinc-300"
                 )}
               >
                 <div className="flex items-center justify-between w-full">
-                  <span className="font-medium text-sm">{preset.name}</span>
-                  {isSelected && <CheckIcon className="size-4 text-primary shrink-0" />}
+                  <span className="font-semibold text-xs text-zinc-200">{preset.name}</span>
+                  {isSelected && <CheckIcon className="size-3.5 text-emerald-400 shrink-0" />}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                <p className="text-[11px] text-zinc-500 mt-0.5 line-clamp-1">
                   {preset.description}
                 </p>
-                <div className="mt-2 text-[11px] font-mono text-muted-foreground/80 truncate">
+                <div className="mt-2 text-[10px] font-mono text-zinc-400 truncate">
                   {preset.defaultModel}
                 </div>
               </button>
@@ -335,165 +382,281 @@ export function SettingsView({ initialSettings, initialModels = [] }: SettingsVi
         </div>
       </div>
 
-      {/* Main Settings Form */}
-      <form onSubmit={handleSave} className="space-y-6">
-        <Card className="bg-card border-border/60 shadow-xs">
-          <CardHeader className="border-b border-border/40 pb-4">
-            <CardTitle className="text-base flex items-center gap-2">
-              <ServerIcon className="size-4 text-primary" />
-              Kredensial & Endpoint API
-            </CardTitle>
-            <CardDescription>
-              Endpoint OpenAI-compatible (v1/chat/completions dan v1/models).
-            </CardDescription>
-          </CardHeader>
+      {/* Two-Column Settings Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Form & Connection (7 cols) */}
+        <div className="lg:col-span-7 space-y-5">
+          <form onSubmit={handleSave} className="space-y-5">
+            <Card className="bg-[#121215] border border-zinc-800 rounded-md shadow-xs">
+              <CardHeader className="border-b border-zinc-800/80 px-4 py-3">
+                <CardTitle className="text-xs font-mono uppercase tracking-wider text-zinc-300 flex items-center gap-2">
+                  <ServerIcon className="size-3.5 text-zinc-400" />
+                  API Credentials & Routing
+                </CardTitle>
+                <CardDescription className="text-xs text-zinc-500">
+                  OpenAI-compatible HTTP endpoint specifications (/v1/chat/completions).
+                </CardDescription>
+              </CardHeader>
 
-          <CardContent className="p-4 sm:p-6 space-y-4">
-            {/* Base URL */}
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground flex items-center justify-between">
-                <span>Base URL Provider</span>
-                <span className="text-xs text-muted-foreground">Wajib berakhiran /v1</span>
-              </label>
-              <Input
-                value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
-                placeholder="https://omoapicall.web.id/v1"
-                required
-                className="font-mono text-sm"
-              />
-            </div>
+              <CardContent className="p-4 space-y-4">
+                {/* Base URL */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <label className="font-medium text-zinc-300">Base URL</label>
+                    <span className="font-mono text-[11px] text-zinc-500">Must end in /v1</span>
+                  </div>
+                  <Input
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                    placeholder="https://omoapicall.web.id/v1"
+                    required
+                    className="font-mono text-xs h-8 bg-zinc-950 border-zinc-800 focus:border-zinc-600 rounded-md"
+                  />
+                </div>
 
-            {/* API Key */}
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">API Key / Token</label>
-              <div className="relative">
-                <Input
-                  type={showApiKey ? "text" : "password"}
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="sk-... atau omop-..."
-                  className="font-mono text-sm pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  title={showApiKey ? "Sembunyikan API Key" : "Tampilkan API Key"}
-                >
-                  {showApiKey ? (
-                    <EyeOffIcon className="size-4" />
-                  ) : (
-                    <EyeIcon className="size-4" />
-                  )}
-                </button>
-              </div>
-            </div>
+                {/* API Key */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-zinc-300">API Key / Auth Bearer</label>
+                  <div className="relative">
+                    <Input
+                      type={showApiKey ? "text" : "password"}
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder="sk-... or omop-..."
+                      className="font-mono text-xs h-8 bg-zinc-950 border-zinc-800 focus:border-zinc-600 rounded-md pr-9"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
+                      title={showApiKey ? "Hide API Key" : "Show API Key"}
+                    >
+                      {showApiKey ? (
+                        <EyeOffIcon className="size-3.5" />
+                      ) : (
+                        <EyeIcon className="size-3.5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
 
-            {/* Model Name Input + Check Button */}
-            <div className="space-y-1.5 pt-1">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-foreground">
-                  Nama Model Yang Digunakan
-                </label>
-                <span className="text-xs text-muted-foreground">
-                  Pilih dari badge di bawah atau ketik manual
-                </span>
-              </div>
+                {/* Model Selection & Check */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <label className="font-medium text-zinc-300">Active Model Name</label>
+                    <span className="font-mono text-[11px] text-zinc-500">
+                      Exact identifier
+                    </span>
+                  </div>
 
-              <div className="flex gap-2">
-                <Input
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  placeholder="glm-5.3-flashh"
-                  required
-                  className="font-mono text-sm flex-1"
-                />
+                  <div className="flex gap-2">
+                    <Input
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      placeholder="glm-5.3-flashh"
+                      required
+                      className="font-mono text-xs h-8 bg-zinc-950 border-zinc-800 focus:border-zinc-600 rounded-md flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCheckModels()}
+                      disabled={isCheckingModels || !baseUrl.trim()}
+                      className="h-8 px-3 text-xs font-mono border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 rounded-md shrink-0 gap-1.5"
+                    >
+                      <RefreshCwIcon
+                        className={cn("size-3", isCheckingModels && "animate-spin")}
+                      />
+                      {isCheckingModels ? "Querying..." : "Scan Models"}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Check models feedback banner */}
+                {checkResult && (
+                  <div
+                    className={cn(
+                      "p-3 rounded-md text-xs font-mono flex items-start gap-2.5 border transition-all",
+                      checkResult.success
+                        ? "bg-emerald-950/20 text-emerald-300 border-emerald-500/30"
+                        : "bg-rose-950/20 text-rose-300 border-rose-500/30"
+                    )}
+                  >
+                    {checkResult.success ? (
+                      <CheckCircle2Icon className="size-4 shrink-0 mt-0.5 text-emerald-400" />
+                    ) : (
+                      <AlertCircleIcon className="size-4 shrink-0 mt-0.5 text-rose-400" />
+                    )}
+                    <div className="flex-1">
+                      <div className="font-semibold flex items-center justify-between">
+                        <span>{checkResult.success ? "Endpoint Online" : "Connection Error"}</span>
+                        {checkResult.latencyMs !== undefined && (
+                          <span className="tabular-nums text-[11px] opacity-80">
+                            {checkResult.latencyMs}ms
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 text-[11px] opacity-90 leading-relaxed font-sans">
+                        {checkResult.message}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Model Connection & Tool Calling Test Banner */}
+                {testModelResult && (
+                  <div
+                    className={cn(
+                      "p-3 rounded-md text-xs font-mono space-y-2 border transition-all",
+                      testModelResult.success
+                        ? testModelResult.supportsToolCalling
+                          ? "bg-emerald-950/20 border-emerald-500/30 text-emerald-300"
+                          : "bg-amber-950/20 border-amber-500/30 text-amber-300"
+                        : "bg-rose-950/20 border-rose-500/30 text-rose-300"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {testModelResult.success ? (
+                          testModelResult.supportsToolCalling ? (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                              ✓ TOOL CALLING VERIFIED
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                              ! PROMPT-ONLY MODE
+                            </span>
+                          )
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-rose-500/20 text-rose-400 border border-rose-500/40">
+                            ✕ TEST FAILED
+                          </span>
+                        )}
+                        <span className="font-semibold text-zinc-200">
+                          [{model}]
+                        </span>
+                      </div>
+                      {testModelResult.latencyMs !== undefined && (
+                        <span className="tabular-nums text-[11px] text-zinc-400">
+                          {testModelResult.latencyMs}ms
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
+                      {testModelResult.message}
+                    </p>
+
+                    {testModelResult.toolCallSample && (
+                      <div className="space-y-1">
+                        <span className="text-[10px] uppercase font-mono text-zinc-500 tracking-wider">
+                          Sample Tool Call Payload:
+                        </span>
+                        <pre className="p-2 rounded bg-black border border-zinc-800 font-mono text-[11px] overflow-x-auto text-zinc-300">
+                          {testModelResult.toolCallSample}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Save feedback banner */}
+                {saveFeedback && (
+                  <div
+                    className={cn(
+                      "p-3 rounded-md text-xs font-mono flex items-center gap-2.5 border transition-all",
+                      saveFeedback.type === "success"
+                        ? "bg-emerald-950/20 text-emerald-300 border-emerald-500/30"
+                        : "bg-rose-950/20 text-rose-300 border-rose-500/30"
+                    )}
+                  >
+                    {saveFeedback.type === "success" ? (
+                      <CheckCircle2Icon className="size-4 shrink-0 text-emerald-400" />
+                    ) : (
+                      <AlertCircleIcon className="size-4 shrink-0 text-rose-400" />
+                    )}
+                    <span>{saveFeedback.message}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Action Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleResetToDefault}
+                className="text-xs font-mono text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md gap-1.5"
+              >
+                <RotateCcwIcon className="size-3" />
+                Reset Defaults
+              </Button>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => handleCheckModels()}
-                  disabled={isCheckingModels || !baseUrl.trim()}
-                  className="shrink-0 gap-1.5"
+                  size="sm"
+                  onClick={handleTestModel}
+                  disabled={isTestingModel || !baseUrl.trim() || !model.trim()}
+                  className="h-8 text-xs font-mono gap-1.5 border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 rounded-md cursor-pointer flex-1 sm:flex-initial"
                 >
-                  <RefreshCwIcon
-                    className={cn("size-3.5", isCheckingModels && "animate-spin")}
+                  <WrenchIcon
+                    className={cn("size-3.5 text-amber-400", isTestingModel && "animate-spin")}
                   />
-                  {isCheckingModels ? "Mengecek..." : "Cek Model"}
+                  {isTestingModel ? "Testing Tool..." : "Verify Model"}
+                </Button>
+
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isSaving}
+                  className="h-8 px-4 text-xs font-mono font-medium gap-1.5 bg-zinc-100 hover:bg-white text-zinc-950 border border-zinc-200 rounded-md shadow-xs cursor-pointer flex-1 sm:flex-initial"
+                >
+                  <CheckIcon className="size-3.5" />
+                  {isSaving ? "Saving..." : "Save Config"}
                 </Button>
               </div>
             </div>
+          </form>
+        </div>
 
-            {/* Check models feedback banner */}
-            {checkResult && (
-              <div
-                className={cn(
-                  "p-3 rounded-lg text-xs flex items-start gap-2.5 transition-all",
-                  checkResult.success
-                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                    : "bg-destructive/10 text-destructive border border-destructive/20"
-                )}
-              >
-                {checkResult.success ? (
-                  <CheckCircle2Icon className="size-4 shrink-0 mt-0.5" />
-                ) : (
-                  <AlertCircleIcon className="size-4 shrink-0 mt-0.5" />
-                )}
-                <div className="flex-1">
-                  <div className="font-medium">
-                    {checkResult.success ? "Koneksi Berhasil" : "Koneksi Bermasalah"}
-                    {checkResult.latencyMs !== undefined && (
-                      <span className="ml-2 font-mono text-[11px] opacity-80">
-                        ⚡ {checkResult.latencyMs}ms
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-0.5 leading-relaxed">{checkResult.message}</div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Model Badges Explorer */}
-        <Card className="bg-card border-border/60 shadow-xs">
-          <CardHeader className="border-b border-border/40 pb-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <SparklesIcon className="size-4 text-primary" />
-                  Daftar Model Tersedia (Klik Badge untuk Memilih)
+        {/* Right Column: Model Explorer & Live Prompt Probe (5 cols) */}
+        <div className="lg:col-span-5 space-y-5">
+          {/* Model Catalog Card */}
+          <Card className="bg-[#121215] border border-zinc-800 rounded-md shadow-xs">
+            <CardHeader className="border-b border-zinc-800/80 px-4 py-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xs font-mono uppercase tracking-wider text-zinc-300 flex items-center gap-2">
+                  <CpuIcon className="size-3.5 text-zinc-400" />
+                  Detected Models
                 </CardTitle>
-                <CardDescription>
-                  Klik salah satu badge model untuk langsung menggunakannya sebagai model aktif.
-                </CardDescription>
+                {fetchedModels.length > 0 && (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 tabular-nums">
+                    {fetchedModels.length} available
+                  </span>
+                )}
               </div>
+            </CardHeader>
 
-              {fetchedModels.length > 0 && (
-                <Badge variant="secondary" className="w-fit">
-                  {fetchedModels.length} Model Ditemukan
-                </Badge>
-              )}
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-4 sm:p-6 space-y-4">
-            {fetchedModels.length > 0 ? (
-              <>
-                {/* Search & Category filter */}
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <div className="relative flex-1">
-                    <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <CardContent className="p-4 space-y-3">
+              {fetchedModels.length > 0 ? (
+                <>
+                  <div className="relative">
+                    <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3 text-zinc-500" />
                     <Input
                       value={modelFilter}
                       onChange={(e) => setModelFilter(e.target.value)}
-                      placeholder="Cari nama model..."
-                      className="pl-8 text-xs h-8"
+                      placeholder="Filter model identifiers..."
+                      className="pl-8 text-xs font-mono h-7 bg-zinc-950 border-zinc-800 focus:border-zinc-600 rounded-md"
                     />
                   </div>
 
                   {/* Category Pills */}
-                  <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+                  <div className="flex items-center gap-1 overflow-x-auto pb-1">
                     {categoryFilters.map((cat) => {
                       const isActive =
                         cat === "Semua" ? !modelFilter : modelFilter.toLowerCase() === cat.toLowerCase();
@@ -503,10 +666,10 @@ export function SettingsView({ initialSettings, initialModels = [] }: SettingsVi
                           type="button"
                           onClick={() => setModelFilter(cat === "Semua" ? "" : cat)}
                           className={cn(
-                            "text-xs px-2.5 py-1 rounded-full transition-colors cursor-pointer shrink-0",
+                            "text-[10px] font-mono px-2 py-0.5 rounded transition-colors cursor-pointer shrink-0 border",
                             isActive
-                              ? "bg-primary text-primary-foreground font-medium"
-                              : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                              ? "bg-zinc-100 text-zinc-950 font-semibold border-zinc-200"
+                              : "bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200"
                           )}
                         >
                           {cat}
@@ -514,184 +677,125 @@ export function SettingsView({ initialSettings, initialModels = [] }: SettingsVi
                       );
                     })}
                   </div>
-                </div>
 
-                {/* Badges container */}
-                <div className="flex flex-wrap gap-2 pt-2 max-h-72 overflow-y-auto pr-1 border border-border/40 rounded-xl p-3 bg-background/50">
-                  {filteredModels.length > 0 ? (
-                    filteredModels.map((m) => {
-                      const isSelected = model === m;
-                      return (
-                        <button
-                          key={m}
-                          type="button"
-                          onClick={() => setModel(m)}
-                          className={cn(
-                            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer border outline-none select-none",
-                            isSelected
-                              ? "bg-primary text-primary-foreground border-primary shadow-xs ring-2 ring-primary/40 font-semibold"
-                              : "bg-card text-foreground border-border/60 hover:bg-accent hover:border-border"
-                          )}
-                        >
-                          {isSelected ? (
-                            <CheckIcon className="size-3.5 text-primary-foreground shrink-0" />
-                          ) : (
-                            <CpuIcon className="size-3 text-muted-foreground shrink-0" />
-                          )}
-                          <span>{m}</span>
-                        </button>
-                      );
-                    })
-                  ) : (
-                    <div className="w-full py-6 text-center text-xs text-muted-foreground">
-                      Tidak ada model yang cocok dengan kata kunci &quot;{modelFilter}&quot;.
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-8 px-4 border border-dashed border-border/80 rounded-xl bg-background/30 space-y-3">
-                <div className="size-10 rounded-full bg-muted/60 flex items-center justify-center mx-auto text-muted-foreground">
-                  <LayersIcon className="size-5" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-foreground">
-                    Belum ada model yang dimuat
+                  {/* Badges container */}
+                  <div className="flex flex-wrap gap-1.5 pt-1 max-h-56 overflow-y-auto pr-1 border border-zinc-800/60 rounded-md p-2 bg-zinc-950/60">
+                    {filteredModels.length > 0 ? (
+                      filteredModels.map((m) => {
+                        const isSelected = model === m;
+                        return (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setModel(m)}
+                            className={cn(
+                              "inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-mono transition-colors cursor-pointer border select-none",
+                              isSelected
+                                ? "bg-zinc-100 text-zinc-950 border-zinc-200 font-semibold shadow-2xs"
+                                : "bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-zinc-700 hover:text-white"
+                            )}
+                          >
+                            {isSelected ? (
+                              <CheckIcon className="size-3 text-zinc-950 shrink-0" />
+                            ) : (
+                              <CpuIcon className="size-3 text-zinc-500 shrink-0" />
+                            )}
+                            <span className="truncate max-w-[190px]">{m}</span>
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="w-full py-4 text-center text-xs font-mono text-zinc-500">
+                        No models matching &quot;{modelFilter}&quot;
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-6 px-3 border border-dashed border-zinc-800 rounded-md bg-zinc-950/30 space-y-2">
+                  <TerminalIcon className="size-5 text-zinc-600 mx-auto" />
+                  <p className="text-xs text-zinc-400 font-mono">
+                    No models cached yet.
                   </p>
-                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                    Klik tombol &quot;Cek Model&quot; di atas untuk mengambil daftar model resmi yang didukung oleh endpoint API Anda.
-                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleCheckModels()}
+                    disabled={isCheckingModels || !baseUrl.trim()}
+                    className="h-7 text-xs font-mono border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 rounded-md"
+                  >
+                    <RefreshCwIcon className={cn("size-3", isCheckingModels && "animate-spin")} />
+                    {isCheckingModels ? "Scanning..." : "Scan Models Now"}
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleCheckModels()}
-                  disabled={isCheckingModels || !baseUrl.trim()}
-                  className="gap-1.5"
-                >
-                  <RefreshCwIcon className={cn("size-3.5", isCheckingModels && "animate-spin")} />
-                  {isCheckingModels ? "Mengecek Model..." : "Muat Model Sekarang"}
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
 
-        {/* Live Test Playground */}
-        <Card className="bg-card border-border/60 shadow-xs">
-          <CardHeader className="border-b border-border/40 pb-4">
-            <CardTitle className="text-base flex items-center gap-2">
-              <SendIcon className="size-4 text-primary" />
-              Uji Coba Respon Model (Testing Langsung)
-            </CardTitle>
-            <CardDescription>
-              Kirim prompt uji coba untuk memastikan model yang Anda pilih merespons dengan benar tanpa error 502/401.
-            </CardDescription>
-          </CardHeader>
+          {/* Live Prompt Probe Card */}
+          <Card className="bg-[#121215] border border-zinc-800 rounded-md shadow-xs">
+            <CardHeader className="border-b border-zinc-800/80 px-4 py-3">
+              <CardTitle className="text-xs font-mono uppercase tracking-wider text-zinc-300 flex items-center gap-2">
+                <SendIcon className="size-3.5 text-zinc-400" />
+                Live Prompt Verification
+              </CardTitle>
+            </CardHeader>
 
-          <CardContent className="p-4 sm:p-6 space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Pesan Uji Coba</label>
-              <div className="flex gap-2">
+            <CardContent className="p-4 space-y-3">
+              <div className="space-y-1.5">
                 <Input
                   value={testPrompt}
                   onChange={(e) => setTestPrompt(e.target.value)}
-                  placeholder="Ketik prompt test..."
-                  className="text-sm"
+                  placeholder="Test prompt string..."
+                  className="text-xs font-mono h-8 bg-zinc-950 border-zinc-800 focus:border-zinc-600 rounded-md"
                 />
                 <Button
                   type="button"
+                  size="sm"
                   onClick={handleRunPromptTest}
                   disabled={isTestingPrompt || !baseUrl.trim() || !model.trim()}
-                  className="shrink-0 gap-1.5"
+                  className="w-full h-7 text-xs font-mono border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 rounded-md gap-1.5"
                 >
-                  <SendIcon className={cn("size-3.5", isTestingPrompt && "animate-pulse")} />
-                  {isTestingPrompt ? "Menguji..." : "Kirim Uji Coba"}
+                  <SendIcon className={cn("size-3", isTestingPrompt && "animate-pulse")} />
+                  {isTestingPrompt ? "Executing Probe..." : "Send Test Probe"}
                 </Button>
               </div>
-            </div>
 
-            {/* Test response bubble */}
-            {testResponse && (
-              <div
-                className={cn(
-                  "p-4 rounded-xl text-xs space-y-2 border transition-all",
-                  testResponse.success
-                    ? "bg-secondary/40 border-border/60 text-foreground"
-                    : "bg-destructive/10 border-destructive/20 text-destructive"
-                )}
-              >
-                <div className="flex items-center justify-between font-medium">
-                  <span className="flex items-center gap-1.5">
-                    {testResponse.success ? (
-                      <CheckCircle2Icon className="size-3.5 text-emerald-400" />
-                    ) : (
-                      <AlertCircleIcon className="size-3.5 text-destructive" />
-                    )}
-                    {testResponse.success
-                      ? `Respon dari [${model}]`
-                      : "Uji Coba Gagal"}
-                  </span>
-                  {testResponse.latencyMs !== undefined && (
-                    <span className="font-mono text-[11px] text-muted-foreground">
-                      Latency: {testResponse.latencyMs}ms
-                    </span>
+              {testResponse && (
+                <div
+                  className={cn(
+                    "p-3 rounded-md text-xs space-y-1.5 border transition-all font-mono",
+                    testResponse.success
+                      ? "bg-zinc-950 border-zinc-800 text-zinc-300"
+                      : "bg-rose-950/20 border-rose-500/30 text-rose-300"
                   )}
+                >
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="flex items-center gap-1.5">
+                      {testResponse.success ? (
+                        <CheckCircle2Icon className="size-3 text-emerald-400" />
+                      ) : (
+                        <AlertCircleIcon className="size-3 text-rose-400" />
+                      )}
+                      <span>{testResponse.success ? `Response [${model}]` : "Probe Failed"}</span>
+                    </span>
+                    {testResponse.latencyMs !== undefined && (
+                      <span className="text-zinc-500 tabular-nums">
+                        {testResponse.latencyMs}ms
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="p-2 rounded bg-black border border-zinc-800/80 text-[11px] leading-relaxed whitespace-pre-wrap select-text max-h-48 overflow-y-auto">
+                    {testResponse.success ? testResponse.reply : testResponse.error}
+                  </div>
                 </div>
-
-                <div className="p-3 rounded-lg bg-background/60 border border-border/40 font-mono text-[12px] leading-relaxed whitespace-pre-wrap select-text">
-                  {testResponse.success ? testResponse.reply : testResponse.error}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Feedback message banner */}
-        {saveFeedback && (
-          <div
-            className={cn(
-              "p-3 rounded-xl text-sm flex items-center gap-2.5 transition-all",
-              saveFeedback.type === "success"
-                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                : "bg-destructive/10 text-destructive border border-destructive/20"
-            )}
-          >
-            {saveFeedback.type === "success" ? (
-              <CheckCircle2Icon className="size-4 shrink-0" />
-            ) : (
-              <AlertCircleIcon className="size-4 shrink-0" />
-            )}
-            <span>{saveFeedback.message}</span>
-          </div>
-        )}
-
-        {/* Footer Action Buttons */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleResetToDefault}
-            className="text-muted-foreground hover:text-foreground gap-1.5"
-          >
-            <RotateCcwIcon className="size-3.5" />
-            Kembalikan ke Default (.env)
-          </Button>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <Button
-              type="submit"
-              disabled={isSaving}
-              className="gap-2 w-full sm:w-auto px-6"
-            >
-              <CheckIcon className="size-4" />
-              {isSaving ? "Menyimpan..." : "Simpan Pengaturan"}
-            </Button>
-          </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

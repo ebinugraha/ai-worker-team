@@ -2,6 +2,7 @@
 
 import { auth as clerkAuth } from "@clerk/nextjs/server";
 import { auth as triggerAuth } from "@trigger.dev/sdk";
+import { runs } from "@trigger.dev/sdk/v3";
 import {
   chat,
   defaultStorage,
@@ -10,6 +11,7 @@ import {
 import { revalidatePath } from "next/cache";
 import { db, chats, chatMembers, bots } from "@/db";
 import { eq, and, desc } from "drizzle-orm";
+import { formatChatPreview } from "@/lib/clean-text";
 import type { chatAgent } from "../../trigger/chat";
 
 const baseStartSession =
@@ -26,7 +28,57 @@ export async function startChatSession(
     throw new Error("Unauthorized");
   }
 
-  return baseStartSession(params);
+  const result = await baseStartSession(params);
+  if (result && typeof result === "object" && "run" in result) {
+    const runObj = (result as { run?: { id?: string } }).run;
+    if (params.chatId && runObj?.id) {
+      await db
+        .update(chats)
+        .set({ latestRunId: runObj.id })
+        .where(eq(chats.id, params.chatId))
+        .catch(() => {});
+    }
+  }
+  return result;
+}
+
+export async function stopChatGeneration(chatIdOrRunId: string): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  const { userId } = await clerkAuth();
+  if (!userId) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  try {
+    let runId = chatIdOrRunId;
+    if (!runId.startsWith("run_")) {
+      const [chat] = await db
+        .select({ latestRunId: chats.latestRunId })
+        .from(chats)
+        .where(eq(chats.id, chatIdOrRunId))
+        .limit(1);
+
+      if (chat?.latestRunId) {
+        runId = chat.latestRunId;
+      } else {
+        return {
+          success: false,
+          error: "Tidak ada proses aktif yang ditemukan untuk chat ini",
+        };
+      }
+    }
+
+    await runs.cancel(runId);
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to cancel run:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Gagal menghentikan agent",
+    };
+  }
 }
 
 export async function mintChatAccessToken(chatId: string) {
@@ -68,6 +120,31 @@ export async function loadChatTranscript(params: {
       if (!msg || !msg.id) return false;
       return seen.get(msg.id) === index;
     });
+
+    // Auto-sync lastMessagePreview if empty in database
+    if (result.messages.length > 0 && params.chatId) {
+      const lastMsg = result.messages[result.messages.length - 1];
+      let preview = "";
+      if (lastMsg && Array.isArray(lastMsg.parts)) {
+        for (const part of lastMsg.parts) {
+          if (part && "text" in part && typeof (part as { text?: unknown }).text === "string") {
+            preview = (part as { text: string }).text;
+          }
+        }
+      }
+      if (preview) {
+        const clean = formatChatPreview(preview, 160);
+        if (clean) {
+          db.update(chats)
+            .set({
+              lastMessagePreview: clean,
+              lastMessageAt: new Date(),
+            })
+            .where(eq(chats.id, params.chatId))
+            .catch(() => {});
+        }
+      }
+    }
   }
 
   return result;
@@ -353,6 +430,8 @@ export interface GroupChatItem {
   name: string;
   avatars: string[];
   members: ChatMemberBot[];
+  lastMessagePreview?: string | null;
+  lastMessageAt?: Date | string | null;
   createdAt: Date | string | null;
 }
 
@@ -394,6 +473,8 @@ export async function getUserGroupChatsAction(): Promise<{
         name: chatItem.name || "Group Chat",
         avatars: memberRows.map((m) => m.avatar),
         members: memberRows,
+        lastMessagePreview: formatChatPreview(chatItem.lastMessagePreview),
+        lastMessageAt: chatItem.lastMessageAt,
         createdAt: chatItem.createdAt,
       });
     }
@@ -402,5 +483,75 @@ export async function getUserGroupChatsAction(): Promise<{
   } catch (err) {
     console.error("Failed to fetch user group chats:", err);
     return { success: false, error: "Gagal memuat daftar obrolan grup" };
+  }
+}
+
+export async function recordChatActivityAction(payload: {
+  chatId: string;
+  preview: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { userId } = await clerkAuth();
+    if (!userId) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    const { chatId, preview } = payload;
+    if (!chatId) {
+      return { success: false, error: "Missing chatId" };
+    }
+
+    const cleanText = formatChatPreview(preview, 160);
+
+    const now = new Date();
+
+    const [existingChat] = await db
+      .select({ id: chats.id })
+      .from(chats)
+      .where(eq(chats.id, chatId))
+      .limit(1);
+
+    if (existingChat) {
+      await db
+        .update(chats)
+        .set({
+          lastMessagePreview: cleanText,
+          lastMessageAt: now,
+        })
+        .where(eq(chats.id, chatId));
+    } else {
+      const [bot] = await db
+        .select()
+        .from(bots)
+        .where(eq(bots.id, chatId))
+        .limit(1);
+
+      if (bot) {
+        await db.insert(chats).values({
+          id: bot.id,
+          userId,
+          kind: "direct",
+          name: bot.name,
+          lastMessagePreview: cleanText,
+          lastMessageAt: now,
+          createdAt: bot.createdAt,
+        });
+
+        await db
+          .insert(chatMembers)
+          .values({
+            chatId: bot.id,
+            botId: bot.id,
+            joinedAt: bot.createdAt,
+          })
+          .onConflictDoNothing();
+      }
+    }
+
+    revalidatePath("/", "layout");
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to record chat activity:", err);
+    return { success: false, error: "Gagal mencatat pesan terakhir" };
   }
 }

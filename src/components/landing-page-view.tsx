@@ -8,13 +8,13 @@ import {
   TerminalIcon,
   MonitorIcon,
   UsersIcon,
-  SparklesIcon,
   CopyIcon,
   CheckIcon,
   HardDriveIcon,
+  ChevronRightIcon,
+  CornerDownLeftIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { SeedAvatar } from "@/components/seed-avatar";
 import { cn } from "@/lib/utils";
 
@@ -72,37 +72,37 @@ const AGENT_FLEET = [
     name: "Ada",
     role: "Senior Security & Systems Researcher",
     avatar: "bot-ada",
-    badge: "Cyber Defense & Reverse Engineering",
+    badge: "Cyber Defense & Binary Audit",
     description:
-      "Specializes in defensive vulnerability analysis, binary inspection, secure architecture design, and real-time security remediation inside isolated sandboxes.",
-    tools: ["bash", "readFile", "openImage", "grepTool"],
+      "Defensive vulnerability analysis, binary inspection, secure architecture design, and real-time security remediation inside isolated Linux sandboxes.",
+    tools: ["bash_exec", "file_system", "computer_use", "finish_task"],
   },
   {
     name: "Hemingway",
     role: "Lead Fullstack & Systems Architect",
     avatar: "bot-hemingway",
-    badge: "Core Engineering & Scalability",
+    badge: "Distributed Systems & Next.js",
     description:
-      "Crafts high-performance distributed systems, writes robust type-safe codebases, refactors complex architectures, and drives continuous integration suites.",
-    tools: ["bash", "gitWorkflow", "testRunner", "packageAudit"],
+      "Crafts high-performance distributed architectures, refactors mission-critical codebases, and drives automated headless verification suites.",
+    tools: ["bash_exec", "file_system", "computer_use", "wait"],
   },
   {
     name: "Wong",
-    role: "Deep Research & Knowledge Intelligence",
+    role: "Deep Research & Reconnaissance",
     avatar: "bot-wong",
-    badge: "Scientific Synthesis & Recon",
+    badge: "Scientific Synthesis & Web Recon",
     description:
-      "Performs structured technical reconnaissance, documentation extraction, algorithmic analysis, and deep multi-source literature synthesis.",
-    tools: ["webSearch", "pdfExtractor", "semanticIndex", "readFile"],
+      "Performs structured technical reconnaissance, documentation extraction, algorithmic verification, and literature synthesis across knowledge bases.",
+    tools: ["web_search", "file_system", "bash_exec", "finish_task"],
   },
   {
     name: "BugBountySenior",
-    role: "Defensive Code Audit & Penetration Lab",
+    role: "Penetration Lab & Automated Verification",
     avatar: "bot-bugbounty",
-    badge: "Automated Lab Verification",
+    badge: "Dynamic Fuzzing & Static Analysis",
     description:
-      "Runs automated security scanning, fuzz testing, dependency audits, and strict environment validation within educational containment sandboxes.",
-    tools: ["sandboxBash", "networkScan", "logInspector", "diffViewer"],
+      "Runs automated security regression testing, dependency audits, fuzz testing, and environment isolation checks in Daytona virtual machines.",
+    tools: ["bash_exec", "computer_use", "file_system", "handoff"],
   },
 ];
 
@@ -118,58 +118,68 @@ export function LandingPageView() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-white selection:text-black font-sans antialiased relative overflow-x-hidden">
-      {/* Background ambient lighting */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[550px] bg-gradient-to-b from-neutral-800/20 via-neutral-900/10 to-transparent blur-3xl pointer-events-none -z-10" />
+    <div className="min-h-screen bg-[#09090b] text-zinc-100 selection:bg-zinc-100 selection:text-zinc-950 font-sans antialiased relative overflow-x-hidden">
+      {/* Structural Engineering Grid Background */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none -z-10" />
 
-      {/* Floating Top Navigation Bar (x.ai style) */}
-      <header className="sticky top-0 z-50 w-full border-b border-neutral-900/80 bg-black/75 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+      {/* Top Header Bar */}
+      <header className="sticky top-0 z-50 w-full border-b border-zinc-800 bg-[#09090b]/90 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-12 flex items-center justify-between">
           {/* Brand Logo & Name */}
           <Link
             href="/landing"
-            className="flex items-center gap-3 select-none hover:opacity-85 transition-opacity"
+            className="flex items-center gap-2.5 select-none hover:opacity-85 transition-opacity"
           >
             <Image
               src="/Logo.svg"
               alt="Genichiro Logo"
-              width={26}
-              height={24}
-              className="h-5.5 w-auto object-contain shrink-0"
+              width={22}
+              height={20}
+              className="h-5 w-auto object-contain shrink-0"
               priority
             />
-            <span className="font-semibold text-base tracking-tight text-white">
+            <span className="font-semibold text-sm tracking-tight text-zinc-100">
               Genichiro
+            </span>
+            <span className="text-zinc-600 font-mono text-xs">/</span>
+            <span className="text-[11px] font-mono text-zinc-400 hidden sm:inline">
+              ai-worker-team
             </span>
           </Link>
 
-          {/* Nav Links (Desktop) */}
-          <nav className="hidden md:flex items-center gap-7 text-xs font-medium text-neutral-400">
-            <a
-              href="#capabilities"
-              className="hover:text-white transition-colors"
-            >
-              Capabilities
+          {/* Nav Links */}
+          <nav className="hidden md:flex items-center gap-6 text-xs font-mono text-zinc-400">
+            <a href="#capabilities" className="hover:text-zinc-100 transition-colors">
+              capabilities
             </a>
-            <a href="#agents" className="hover:text-white transition-colors">
-              Agents
+            <a href="#preview" className="hover:text-zinc-100 transition-colors">
+              ide-workstation
             </a>
-            <a href="#sandbox" className="hover:text-white transition-colors">
-              Daytona Sandbox
+            <a href="#agents" className="hover:text-zinc-100 transition-colors">
+              agent-fleet
             </a>
-            <a href="#metrics" className="hover:text-white transition-colors">
-              Architecture
+            <a href="#architecture" className="hover:text-zinc-100 transition-colors">
+              specs
             </a>
           </nav>
 
           {/* Action CTAs */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <Link href="/sign-in">
               <Button
+                variant="outline"
                 size="sm"
-                className="h-8 rounded-full px-4 text-xs font-medium text-neutral-200 bg-neutral-900 hover:bg-neutral-800 hover:text-white border border-neutral-800 transition-colors cursor-pointer"
+                className="h-7 rounded-md px-3 text-xs font-mono border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200 cursor-pointer"
               >
                 Sign In
+              </Button>
+            </Link>
+            <Link href="/sign-up">
+              <Button
+                size="sm"
+                className="h-7 rounded-md px-3 text-xs font-mono font-medium bg-zinc-100 text-zinc-950 hover:bg-white border border-zinc-200 cursor-pointer"
+              >
+                Deploy Fleet
               </Button>
             </Link>
           </div>
@@ -177,321 +187,367 @@ export function LandingPageView() {
       </header>
 
       {/* Hero Section */}
-      <section className="relative pt-20 pb-20 md:pt-28 md:pb-28 px-4 sm:px-6 max-w-7xl mx-auto text-center flex flex-col items-center">
-        {/* Release / Announcement Pill */}
-        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full border border-neutral-800 bg-neutral-950/80 text-[11px] font-medium text-neutral-300 mb-8 backdrop-blur-md shadow-xs animate-in fade-in slide-in-from-top-4 duration-700">
-          <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span>New · Autonomous Multi-Agent Sandbox Architecture</span>
+      <section className="relative pt-16 pb-16 md:pt-24 md:pb-24 px-4 sm:px-6 max-w-7xl mx-auto text-center flex flex-col items-center">
+        {/* Release Pill */}
+        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md border border-zinc-800 bg-zinc-900/90 text-[11px] font-mono text-zinc-300 mb-6 shadow-xs select-none">
+          <span className="size-1.5 rounded-full bg-zinc-400" />
+          <span>v2.4.0 · Autonomous Cloud Sandbox & Virtual Display</span>
+          <ChevronRightIcon className="size-3 text-zinc-500" />
         </div>
 
-        {/* Hero Headline (x.ai typography style) */}
-        <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight text-white max-w-5xl leading-[1.08] mb-6">
-          Autonomous AI Workers{" "}
-          <span className="text-neutral-400 font-medium block sm:inline">
-            for everything you build & execute.
+        {/* Hero Headline */}
+        <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight text-zinc-100 max-w-5xl leading-[1.08] mb-5">
+          High-Craft Autonomous Agents{" "}
+          <span className="text-zinc-500 font-normal block sm:inline">
+            with Native Linux Workstations.
           </span>
         </h1>
 
         {/* Subtitle */}
-        <p className="text-base sm:text-lg md:text-xl text-neutral-400 max-w-2xl mx-auto font-normal leading-relaxed mb-10">
-          Reasoning, terminal execution, live VNC visual desktop, and multi-agent
-          collaboration. Powered by dedicated Daytona Linux sandboxes and Trigger.dev.
+        <p className="text-sm sm:text-base md:text-lg text-zinc-400 max-w-2xl mx-auto leading-relaxed mb-8 font-normal">
+          Not conversational chatbot toys. Real autonomous engineers with dedicated Daytona cloud sandboxes, live VNC display capture, and high token limits.
         </p>
 
-        {/* Hero Action Buttons */}
-        <div className="flex flex-col sm:flex-row items-center gap-3.5 w-full sm:w-auto justify-center mb-16">
+        {/* Hero Actions */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto justify-center mb-12">
           <Link href="/sign-up" className="w-full sm:w-auto">
             <Button
               size="lg"
-              className="w-full sm:w-auto h-11 px-7 rounded-full bg-white text-black font-semibold text-sm hover:bg-neutral-200 transition-colors cursor-pointer gap-2"
+              className="w-full sm:w-auto h-9 px-5 rounded-md bg-zinc-100 text-zinc-950 font-mono text-xs font-medium hover:bg-white border border-zinc-200 cursor-pointer gap-2 shadow-xs"
             >
-              Start Building Free
-              <ArrowRightIcon className="size-4" data-icon="inline-end" />
+              <span>Initialize Workspace</span>
+              <ArrowRightIcon className="size-3.5" />
             </Button>
           </Link>
-          <a href="#capabilities" className="w-full sm:w-auto">
+          <a href="#preview" className="w-full sm:w-auto">
             <Button
               variant="outline"
               size="lg"
-              className="w-full sm:w-auto h-11 px-6 rounded-full border-neutral-800 bg-neutral-950/60 text-neutral-300 hover:text-white hover:bg-neutral-900 transition-colors cursor-pointer text-sm font-medium"
+              className="w-full sm:w-auto h-9 px-4 rounded-md border-zinc-800 bg-zinc-900/60 text-zinc-300 hover:text-white hover:bg-zinc-800/80 cursor-pointer text-xs font-mono"
             >
-              Explore Capabilities
+              Inspect IDE Architecture
             </Button>
           </a>
         </div>
 
-        {/* Simulated Interactive Hero Console (Hero Artifact) */}
-        <div className="w-full max-w-4xl rounded-2xl border border-neutral-800/90 bg-neutral-950/90 shadow-2xl overflow-hidden backdrop-blur-md text-left">
-          {/* Window Bar */}
-          <div className="h-10 px-4 border-b border-neutral-900 flex items-center justify-between bg-neutral-900/40">
+        {/* Interactive Split-Screen IDE Preview Mockup */}
+        <div
+          id="preview"
+          className="w-full max-w-5xl rounded-lg border border-zinc-800 bg-[#09090b] shadow-lg overflow-hidden text-left"
+        >
+          {/* Top IDE Window Bar */}
+          <div className="h-9 px-3 border-b border-zinc-800 bg-zinc-950 flex items-center justify-between text-xs font-mono select-none">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
+              <span className="text-zinc-400 font-medium truncate">
+                genichiro-fleet · 4 agents initialized
+              </span>
+              <span className="text-zinc-600 hidden sm:inline">|</span>
+              <span className="text-zinc-500 text-[11px] hidden sm:inline">
+                sandbox:daytona-isolated-c2
+              </span>
+            </div>
             <div className="flex items-center gap-2">
-              <div className="size-3 rounded-full bg-neutral-800" />
-              <div className="size-3 rounded-full bg-neutral-800" />
-              <div className="size-3 rounded-full bg-neutral-800" />
-              <span className="text-xs font-mono text-neutral-500 ml-2">
-                genichiro-workspace · 4 bots active
+              <span className="px-1.5 py-0.5 rounded text-[10px] bg-zinc-900 border border-zinc-800 text-zinc-400">
+                ⌘K Navigator
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-950/60 border border-emerald-800/50 text-emerald-400 font-semibold">
+                LIVE 60 FPS
               </span>
             </div>
-            <div className="flex items-center gap-2 text-[11px] font-mono text-neutral-400">
-              <span className="size-2 rounded-full bg-emerald-500" />
-              <span>Daytona Cloud Sandbox: Online</span>
-            </div>
           </div>
 
-          {/* Console Content Preview */}
-          <div className="p-5 sm:p-6 font-mono text-xs sm:text-sm space-y-4 text-neutral-300">
-            {/* User message */}
-            <div className="flex items-start gap-3">
-              <span className="text-neutral-500 select-none">user@genichiro:~$</span>
-              <span className="text-white">
-                Audit repositori layanan backend, jalankan vulnerability scan, dan verifikasi test suite di sandbox
-              </span>
+          {/* Split Screen Layout: Left Chat & Trace | Hairline Divider | Right VNC Workstation */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 min-h-[440px]">
+            {/* Left Column: Chat & Tool Execution Trace (7 cols) */}
+            <div className="lg:col-span-7 p-4 sm:p-5 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-zinc-800/80 bg-[#09090b]">
+              <div className="space-y-3.5">
+                {/* User Prompt Box */}
+                <div className="flex justify-end">
+                  <div className="max-w-[85%] rounded-md bg-zinc-900 border border-zinc-800 px-3 py-2 text-xs font-mono text-zinc-200">
+                    <span className="text-zinc-500 mr-2 select-none">&gt;</span>
+                    Inspect /workspace/api, run security fuzzer, and verify Next.js build.
+                  </div>
+                </div>
+
+                {/* AI Thought Stream */}
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex items-center gap-2 text-zinc-400 font-mono text-[11px]">
+                    <SeedAvatar seed="bot-ada" size={16} className="rounded" />
+                    <span className="font-semibold text-zinc-200">Ada</span>
+                    <span className="text-zinc-600">·</span>
+                    <span className="text-zinc-500 tabular-nums">thought for 0.4s</span>
+                  </div>
+                  <p className="text-zinc-400 leading-relaxed pl-6 text-xs">
+                    Accessing isolated container filesystem. Running static security analysis on incoming routes, verifying dependency boundaries, and triggering Turbopack compile.
+                  </p>
+                </div>
+
+                {/* Compact Tool Trace 1: bash_exec */}
+                <div className="pl-6 space-y-1">
+                  <div className="rounded-md border border-zinc-800 bg-[#050505] p-2 font-mono text-xs space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <div className="flex items-center gap-1.5 text-zinc-300">
+                        <span className="text-emerald-400 font-bold">✓</span>
+                        <span className="text-zinc-400 font-semibold">bash_exec</span>
+                        <span className="text-zinc-500 truncate max-w-[220px]">
+                          npm run lint &amp;&amp; npx tsc --noEmit
+                        </span>
+                      </div>
+                      <span className="text-zinc-500 tabular-nums">1.2s</span>
+                    </div>
+                    <div className="p-1.5 rounded bg-black border border-zinc-800/60 text-[10px] text-zinc-400 leading-normal">
+                      &gt; ready in 340ms · 0 type errors detected · exit code 0
+                    </div>
+                  </div>
+                </div>
+
+                {/* Compact Tool Trace 2: computer_use */}
+                <div className="pl-6 space-y-1">
+                  <div className="rounded-md border border-zinc-800 bg-[#050505] p-2 font-mono text-xs space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <div className="flex items-center gap-1.5 text-zinc-300">
+                        <span className="text-emerald-400 font-bold">✓</span>
+                        <span className="text-zinc-400 font-semibold">computer_use</span>
+                        <span className="text-zinc-500">CLICK (640, 380) on Chromium</span>
+                      </div>
+                      <span className="text-zinc-500 tabular-nums">0.6s</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* AI Structured Output */}
+                <div className="pl-6 border-l border-emerald-500/60 pt-1 text-xs space-y-1">
+                  <span className="font-mono text-emerald-400 text-[11px] font-semibold">
+                    ✓ VERIFICATION PASSED
+                  </span>
+                  <p className="text-zinc-300 leading-relaxed font-sans text-xs">
+                    All 24 test suites passed. Sandbox display :1 verified headless GUI rendering without anomalies.
+                  </p>
+                </div>
+              </div>
+
+              {/* Simulated Command Bar Input */}
+              <div className="mt-4 pt-3 border-t border-zinc-800/60">
+                <div className="w-full rounded-md border border-zinc-800 bg-zinc-900/60 p-2 flex items-center justify-between text-xs font-mono">
+                  <div className="flex items-center gap-2 text-zinc-500">
+                    <TerminalIcon className="size-3.5 text-zinc-400" />
+                    <span>Command @Ada...</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-zinc-500">Enter</span>
+                    <CornerDownLeftIcon className="size-3 text-zinc-400" />
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Agent reasoning trace */}
-            <div className="rounded-lg bg-neutral-900/60 border border-neutral-800/60 p-3 space-y-2">
-              <div className="flex items-center gap-2 text-neutral-400 text-xs">
-                <SparklesIcon className="size-3.5 text-amber-400" />
-                <span className="font-semibold text-neutral-200">
-                  Ada (Security & Systems Researcher)
+            {/* Right Column: Virtual Workstation Console (5 cols) */}
+            <div className="lg:col-span-5 bg-[#050505] flex flex-col justify-between p-3 sm:p-4">
+              {/* Workstation Header */}
+              <div className="flex items-center justify-between pb-2 border-b border-zinc-800/60 text-xs font-mono select-none">
+                <div className="flex items-center gap-2">
+                  <MonitorIcon className="size-3.5 text-zinc-400" />
+                  <span className="text-zinc-300 font-semibold">VNC Framebuffer</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[10px] text-zinc-500">
+                  <span className="size-1.5 rounded-full bg-emerald-500" />
+                  <span>1024×768 @ 60Hz</span>
+                </div>
+              </div>
+
+              {/* Virtual Screen Viewport */}
+              <div className="my-3 rounded-md border border-zinc-800 bg-black p-3 font-mono text-xs space-y-2 relative overflow-hidden flex-1 flex flex-col justify-between">
+                {/* Synthetic GUI Desktop state */}
+                <div className="space-y-2">
+                  <div className="h-5 rounded bg-zinc-900 border border-zinc-800 px-2 flex items-center justify-between text-[10px] text-zinc-400">
+                    <span className="flex items-center gap-1.5">
+                      <span className="size-1.5 rounded-full bg-zinc-600" />
+                      <span>X11 Desktop / Chromium v126</span>
+                    </span>
+                    <span className="text-zinc-600">display :1</span>
+                  </div>
+
+                  <div className="p-2.5 rounded bg-zinc-950 border border-zinc-800/80 text-[11px] text-zinc-300 space-y-1">
+                    <div className="text-emerald-400 font-semibold">
+                      $ curl -I http://localhost:3000
+                    </div>
+                    <div className="text-zinc-500 text-[10px]">
+                      HTTP/1.1 200 OK<br />
+                      X-Powered-By: Next.js 16 (Turbopack)<br />
+                      Content-Type: text/html; charset=utf-8
+                    </div>
+                  </div>
+                </div>
+
+                {/* Active Simulated Cursor & Coordinate Overlay */}
+                <div className="flex items-center justify-between pt-2 border-t border-zinc-900 text-[10px] text-zinc-500 font-mono">
+                  <span>cursor: (640, 380)</span>
+                  <span className="text-emerald-400">takeover: ready</span>
+                </div>
+
+                {/* Visual red dot click marker */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center">
+                  <div className="size-5 rounded-full border border-rose-500/80 bg-rose-500/20 flex items-center justify-center animate-ping" />
+                  <div className="size-2 rounded-full bg-rose-500 absolute" />
+                </div>
+              </div>
+
+              {/* Workstation Controls */}
+              <div className="flex items-center justify-between pt-2 border-t border-zinc-800/60 text-[11px] font-mono text-zinc-400">
+                <span className="flex items-center gap-1.5">
+                  <span className="size-1.5 rounded-full bg-zinc-600" />
+                  <span>Mode: AI Control</span>
                 </span>
-                <span className="text-neutral-500">· Thought for 1.4s</span>
-              </div>
-              <div className="text-neutral-400 text-xs pl-5.5 leading-relaxed">
-                Mengakses sandbox Linux terisolasi. Melakukan static analysis terhadap codebase, memeriksa audit dependensi, dan menjalankan automated integration test.
-              </div>
-            </div>
-
-            {/* Simulated Tool Execution */}
-            <div className="rounded-lg bg-black/80 border border-neutral-800/80 p-3 text-xs space-y-1.5">
-              <div className="text-neutral-400 flex items-center justify-between">
-                <span>▸ bashTool: npm audit --audit-level=high && npm test</span>
-                <span className="text-emerald-400">exitCode: 0</span>
-              </div>
-              <div className="text-neutral-500 text-[11px]">
-                ✓ 48 test suites passed, 0 vulnerabilities found.<br />
-                ✓ Sandbox container listening on http://localhost:3000<br />
-                ✓ Live visual desktop active on display :0
-              </div>
-            </div>
-
-            {/* Agent Final Output */}
-            <div className="text-neutral-200 text-xs sm:text-sm pl-2 border-l-2 border-emerald-500/80">
-              <p className="font-semibold text-white mb-1">
-                Ada: Audit & Verifikasi Berhasil.
-              </p>
-              <p className="text-neutral-400 leading-relaxed">
-                Seluruh 48 skenario pengujian berhasil dilewati tanpa celah keamanan. Service backend berjalan stabil di dalam sandbox Daytona dan siap untuk deployment.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Core Capabilities Bento Grid (x.ai style) */}
-      <section id="capabilities" className="py-20 px-4 sm:px-6 max-w-7xl mx-auto">
-        <div className="text-left mb-12">
-          <Badge
-            variant="outline"
-            className="h-6 px-2.5 text-[11px] font-mono text-neutral-400 border-neutral-800 rounded-full mb-3"
-          >
-            Core Capabilities
-          </Badge>
-          <h2 className="text-3xl sm:text-5xl font-bold tracking-tight text-white mb-4">
-            Autonomous execution. Zero compromise.
-          </h2>
-          <p className="text-neutral-400 text-base sm:text-lg max-w-2xl font-normal">
-            Every AI agent is equipped with a real Linux cloud sandbox, high token
-            budgets, and multimodal toolkits to deliver finished results.
-          </p>
-        </div>
-
-        {/* Bento Grid Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {/* Card 1: Multi-Agent Group Chat (Large) */}
-          <div className="lg:col-span-2 rounded-2xl border border-neutral-800/80 bg-neutral-950/60 p-6 sm:p-8 flex flex-col justify-between hover:border-neutral-700 transition-colors group">
-            <div>
-              <div className="size-10 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center text-white mb-5">
-                <UsersIcon className="size-5" />
-              </div>
-              <h3 className="text-xl sm:text-2xl font-semibold text-white mb-2">
-                Collaborative Multi-Agent Squads
-              </h3>
-              <p className="text-neutral-400 text-sm leading-relaxed mb-6 max-w-xl">
-                Group chats where multiple agents (Researchers, Engineers, Architects)
-                work together in the same thread. Hand off tasks or mention specific
-                specialists to solve complex multidisciplinary problems.
-              </p>
-            </div>
-
-            {/* Visual preview */}
-            <div className="rounded-xl border border-neutral-800/80 bg-black/60 p-4 space-y-3 font-mono text-xs">
-              <div className="flex items-center gap-2">
-                <SeedAvatar seed="bot-ada" size={20} className="rounded-full" />
-                <span className="font-semibold text-white">Ada</span>
-                <span className="text-[10px] text-neutral-500">Security</span>
-                <span className="text-neutral-400 ml-auto text-[11px]">
-                  &quot;Memeriksa paket npm dependencies...&quot;
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <SeedAvatar seed="bot-hemingway" size={20} className="rounded-full" />
-                <span className="font-semibold text-white">Hemingway</span>
-                <span className="text-[10px] text-neutral-500">Engineering</span>
-                <span className="text-neutral-400 ml-auto text-[11px]">
-                  &quot;Optimalisasi Next.js Turbopack build selesai.&quot;
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Daytona Linux Cloud Sandboxes */}
-          <div className="rounded-2xl border border-neutral-800/80 bg-neutral-950/60 p-6 sm:p-8 flex flex-col justify-between hover:border-neutral-700 transition-colors group">
-            <div>
-              <div className="size-10 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center text-white mb-5">
-                <TerminalIcon className="size-5" />
-              </div>
-              <h3 className="text-xl sm:text-2xl font-semibold text-white mb-2">
-                Dedicated Daytona Sandboxes
-              </h3>
-              <p className="text-neutral-400 text-sm leading-relaxed mb-6">
-                Each bot operates inside an isolated, containerized Linux environment
-                with full bash, root access, filesystem read/write, and package managers.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-neutral-800/80 bg-black/60 p-3.5 font-mono text-[11px] text-neutral-400">
-              <div className="text-emerald-400 mb-1">$ daytona status --active</div>
-              <div className="text-neutral-500">
-                CONTAINER: running (Ubuntu 24.04)<br />
-                STORAGE: /home/daytona/uploads<br />
-                PORTS: 6080 (VNC Desktop)
-              </div>
-            </div>
-          </div>
-
-          {/* Card 3: VNC Visual Desktop Streaming */}
-          <div className="rounded-2xl border border-neutral-800/80 bg-neutral-950/60 p-6 sm:p-8 flex flex-col justify-between hover:border-neutral-700 transition-colors group">
-            <div>
-              <div className="size-10 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center text-white mb-5">
-                <MonitorIcon className="size-5" />
-              </div>
-              <h3 className="text-xl sm:text-2xl font-semibold text-white mb-2">
-                Live VNC Visual Desktop
-              </h3>
-              <p className="text-neutral-400 text-sm leading-relaxed mb-6">
-                Watch agents interact with graphical applications, inspect screenshots
-                in high resolution, and view live browser or GUI state via noVNC.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-neutral-800/80 bg-black/60 p-3.5 flex items-center justify-between text-xs font-mono text-neutral-400">
-              <span className="flex items-center gap-2">
-                <span className="size-2 rounded-full bg-cyan-400 animate-pulse" />
-                VNC Display :0 Active
-              </span>
-              <span className="text-[11px] text-neutral-500">60 FPS</span>
-            </div>
-          </div>
-
-          {/* Card 4: Enterprise File Pipeline (Large) */}
-          <div className="lg:col-span-2 rounded-2xl border border-neutral-800/80 bg-neutral-950/60 p-6 sm:p-8 flex flex-col justify-between hover:border-neutral-700 transition-colors group">
-            <div>
-              <div className="size-10 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center text-white mb-5">
-                <HardDriveIcon className="size-5" />
-              </div>
-              <h3 className="text-xl sm:text-2xl font-semibold text-white mb-2">
-                100 MB Binary Streaming & Auto-Sync
-              </h3>
-              <p className="text-neutral-400 text-sm leading-relaxed mb-6 max-w-xl">
-                Upload large ZIP codebases and documents up to 100 MB via direct binary
-                streaming. Files are automatically extracted and replicated across every
-                bot sandbox in the team.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center font-mono text-xs">
-              <div className="rounded-lg border border-neutral-800 bg-black/40 p-3">
-                <span className="text-lg font-bold text-white block">100 MB</span>
-                <span className="text-[10px] text-neutral-500">Direct Payload</span>
-              </div>
-              <div className="rounded-lg border border-neutral-800 bg-black/40 p-3">
-                <span className="text-lg font-bold text-white block">200K</span>
-                <span className="text-[10px] text-neutral-500">Doc Parse Chars</span>
-              </div>
-              <div className="rounded-lg border border-neutral-800 bg-black/40 p-3">
-                <span className="text-lg font-bold text-white block">Auto-Sync</span>
-                <span className="text-[10px] text-neutral-500">Multi-Sandbox</span>
-              </div>
-              <div className="rounded-lg border border-neutral-800 bg-black/40 p-3">
-                <span className="text-lg font-bold text-white block">ZIP Unpack</span>
-                <span className="text-[10px] text-neutral-500">Autonomous</span>
+                <span className="text-zinc-500 text-[10px]">Virtual Display Bridge</span>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Developer Metrics & Architecture Section (x.ai style) */}
-      <section id="metrics" className="py-20 px-4 sm:px-6 max-w-7xl mx-auto border-t border-neutral-900">
-        <div className="text-left mb-12">
-          <Badge
-            variant="outline"
-            className="h-6 px-2.5 text-[11px] font-mono text-neutral-400 border-neutral-800 rounded-full mb-3"
-          >
-            For Developers & Architects
-          </Badge>
-          <h2 className="text-3xl sm:text-5xl font-bold tracking-tight text-white mb-4">
-            One Platform. Every Capability.
+      {/* Core Architectural Capabilities Grid */}
+      <section id="capabilities" className="py-16 px-4 sm:px-6 max-w-7xl mx-auto border-t border-zinc-800">
+        <div className="text-left mb-10">
+          <span className="text-xs font-mono text-zinc-400 uppercase tracking-wider block mb-2">
+            Engineering Primitives
+          </span>
+          <h2 className="text-2xl sm:text-4xl font-bold tracking-tight text-zinc-100 mb-3">
+            Built for Autonomous Execution.
           </h2>
-          <p className="text-neutral-400 text-base sm:text-lg max-w-2xl font-normal">
-            Terminal, code editing, VNC visual desktop, and multi-agent coordination —
-            orchestrated through Trigger.dev workflows.
+          <p className="text-zinc-400 text-sm max-w-xl">
+            Every agent operates with real Linux kernels, high token execution budgets, and full browser control.
           </p>
         </div>
 
-        {/* Big Numbers Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
-          <div className="p-6 rounded-2xl border border-neutral-800/80 bg-neutral-950/40">
-            <span className="text-4xl sm:text-5xl font-bold tracking-tight text-white font-mono block mb-1">
+        {/* 4 Technical Feature Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-4 rounded-md border border-zinc-800 bg-[#121215] flex flex-col justify-between space-y-4">
+            <div className="space-y-2">
+              <div className="size-8 rounded-md bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300">
+                <UsersIcon className="size-4" />
+              </div>
+              <h3 className="text-sm font-semibold text-zinc-200">
+                Multi-Agent Squads
+              </h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Shared group thread where specialist bots collaborate, mention colleagues, and hand off tasks autonomously.
+              </p>
+            </div>
+            <div className="pt-2 border-t border-zinc-800/60 font-mono text-[10px] text-zinc-500">
+              protocol: agent-mention
+            </div>
+          </div>
+
+          <div className="p-4 rounded-md border border-zinc-800 bg-[#121215] flex flex-col justify-between space-y-4">
+            <div className="space-y-2">
+              <div className="size-8 rounded-md bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300">
+                <TerminalIcon className="size-4" />
+              </div>
+              <h3 className="text-sm font-semibold text-zinc-200">
+                Daytona Sandboxes
+              </h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Dedicated containerized Ubuntu 24.04 runtime with full bash, package management, and persistent mounts.
+              </p>
+            </div>
+            <div className="pt-2 border-t border-zinc-800/60 font-mono text-[10px] text-zinc-500">
+              runtime: isolated-c2
+            </div>
+          </div>
+
+          <div className="p-4 rounded-md border border-zinc-800 bg-[#121215] flex flex-col justify-between space-y-4">
+            <div className="space-y-2">
+              <div className="size-8 rounded-md bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300">
+                <MonitorIcon className="size-4" />
+              </div>
+              <h3 className="text-sm font-semibold text-zinc-200">
+                Live VNC Desktop
+              </h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Real-time graphical desktop with manual user takeover, coordinate click markers, and 60 FPS streaming.
+              </p>
+            </div>
+            <div className="pt-2 border-t border-zinc-800/60 font-mono text-[10px] text-zinc-500">
+              stream: novnc-websocket
+            </div>
+          </div>
+
+          <div className="p-4 rounded-md border border-zinc-800 bg-[#121215] flex flex-col justify-between space-y-4">
+            <div className="space-y-2">
+              <div className="size-8 rounded-md bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300">
+                <HardDriveIcon className="size-4" />
+              </div>
+              <h3 className="text-sm font-semibold text-zinc-200">
+                100 MB File Ingestion
+              </h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Stream ZIP codebases and large documents directly into sandbox filesystems with auto-extraction.
+              </p>
+            </div>
+            <div className="pt-2 border-t border-zinc-800/60 font-mono text-[10px] text-zinc-500">
+              pipeline: direct-binary
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Developer Architecture & Code Section */}
+      <section id="architecture" className="py-16 px-4 sm:px-6 max-w-7xl mx-auto border-t border-zinc-800">
+        <div className="text-left mb-10">
+          <span className="text-xs font-mono text-zinc-400 uppercase tracking-wider block mb-2">
+            System Specifications
+          </span>
+          <h2 className="text-2xl sm:text-4xl font-bold tracking-tight text-zinc-100 mb-3">
+            Engineered for Deep Workloads.
+          </h2>
+          <p className="text-zinc-400 text-sm max-w-xl">
+            High throughput metrics and clean programmatic APIs powered by Trigger.dev and the Vercel AI SDK.
+          </p>
+        </div>
+
+        {/* Technical Metric Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
+          <div className="p-4 rounded-md border border-zinc-800 bg-[#121215]">
+            <span className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-100 font-mono block mb-1 tabular-nums">
               65,536
             </span>
-            <span className="text-xs sm:text-sm text-neutral-400">
+            <span className="text-xs text-zinc-400 font-mono">
               Max output token budget
             </span>
           </div>
 
-          <div className="p-6 rounded-2xl border border-neutral-800/80 bg-neutral-950/40">
-            <span className="text-4xl sm:text-5xl font-bold tracking-tight text-white font-mono block mb-1">
+          <div className="p-4 rounded-md border border-zinc-800 bg-[#121215]">
+            <span className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-100 font-mono block mb-1 tabular-nums">
               80
             </span>
-            <span className="text-xs sm:text-sm text-neutral-400">
-              Max autonomous tool steps
+            <span className="text-xs text-zinc-400 font-mono">
+              Max autonomous tool turns
             </span>
           </div>
 
-          <div className="p-6 rounded-2xl border border-neutral-800/80 bg-neutral-950/40">
-            <span className="text-4xl sm:text-5xl font-bold tracking-tight text-white font-mono block mb-1">
+          <div className="p-4 rounded-md border border-zinc-800 bg-[#121215]">
+            <span className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-100 font-mono block mb-1 tabular-nums">
               &lt;200ms
             </span>
-            <span className="text-xs sm:text-sm text-neutral-400">
+            <span className="text-xs text-zinc-400 font-mono">
               Median stream chunk latency
             </span>
           </div>
 
-          <div className="p-6 rounded-2xl border border-neutral-800/80 bg-neutral-950/40">
-            <span className="text-4xl sm:text-5xl font-bold tracking-tight text-white font-mono block mb-1">
+          <div className="p-4 rounded-md border border-zinc-800 bg-[#121215]">
+            <span className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-100 font-mono block mb-1 tabular-nums">
               100%
             </span>
-            <span className="text-xs sm:text-sm text-neutral-400">
+            <span className="text-xs text-zinc-400 font-mono">
               Isolated Linux environments
             </span>
           </div>
         </div>
 
-        {/* Code Snippet Switcher (x.ai style) */}
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-950/90 overflow-hidden shadow-xl">
-          <div className="h-11 px-4 border-b border-neutral-800 flex items-center justify-between bg-neutral-900/40">
+        {/* Code Snippet Switcher */}
+        <div className="rounded-md border border-zinc-800 bg-[#121215] overflow-hidden shadow-xs">
+          <div className="h-9 px-3 border-b border-zinc-800 flex items-center justify-between bg-zinc-950">
             <div className="flex items-center gap-1 sm:gap-2">
               {(["typescript", "python", "curl"] as const).map((tab) => (
                 <button
@@ -499,13 +555,13 @@ export function LandingPageView() {
                   type="button"
                   onClick={() => setActiveCodeTab(tab)}
                   className={cn(
-                    "px-3 py-1 rounded-md text-xs font-mono transition-colors cursor-pointer capitalize",
+                    "px-2.5 py-1 rounded text-xs font-mono transition-colors cursor-pointer capitalize",
                     activeCodeTab === tab
-                      ? "bg-neutral-800 text-white font-semibold"
-                      : "text-neutral-400 hover:text-white"
+                      ? "bg-zinc-800 text-zinc-100 font-semibold"
+                      : "text-zinc-500 hover:text-zinc-300"
                   )}
                 >
-                  {tab === "typescript" ? "TypeScript (AI SDK)" : tab}
+                  {tab === "typescript" ? "TypeScript (Trigger.dev)" : tab}
                 </button>
               ))}
             </div>
@@ -515,85 +571,80 @@ export function LandingPageView() {
               variant="ghost"
               size="sm"
               onClick={handleCopyCode}
-              className="h-7 px-2.5 text-xs font-mono text-neutral-400 hover:text-white gap-1.5 cursor-pointer"
+              className="h-6 px-2 text-xs font-mono text-zinc-400 hover:text-zinc-100 gap-1.5 cursor-pointer rounded"
             >
               {copied ? (
                 <>
-                  <CheckIcon className="size-3.5 text-emerald-400" />
+                  <CheckIcon className="size-3 text-emerald-400" />
                   <span>Copied</span>
                 </>
               ) : (
                 <>
-                  <CopyIcon className="size-3.5" />
+                  <CopyIcon className="size-3" />
                   <span>Copy</span>
                 </>
               )}
             </Button>
           </div>
 
-          <pre className="p-5 sm:p-6 overflow-x-auto font-mono text-xs sm:text-sm text-neutral-300 leading-relaxed bg-black/60">
+          <pre className="p-4 sm:p-5 overflow-x-auto font-mono text-xs text-zinc-300 leading-relaxed bg-[#050505]">
             <code>{CODE_SNIPPETS[activeCodeTab]}</code>
           </pre>
         </div>
       </section>
 
       {/* Specialist Agent Fleet Showcase */}
-      <section id="agents" className="py-20 px-4 sm:px-6 max-w-7xl mx-auto border-t border-neutral-900">
-        <div className="text-left mb-12">
-          <Badge
-            variant="outline"
-            className="h-6 px-2.5 text-[11px] font-mono text-neutral-400 border-neutral-800 rounded-full mb-3"
-          >
-            Specialist Agents
-          </Badge>
-          <h2 className="text-3xl sm:text-5xl font-bold tracking-tight text-white mb-4">
-            Meet the Agent Team.
+      <section id="agents" className="py-16 px-4 sm:px-6 max-w-7xl mx-auto border-t border-zinc-800">
+        <div className="text-left mb-10">
+          <span className="text-xs font-mono text-zinc-400 uppercase tracking-wider block mb-2">
+            Roster &amp; Profiles
+          </span>
+          <h2 className="text-2xl sm:text-4xl font-bold tracking-tight text-zinc-100 mb-3">
+            Autonomous Teammates.
           </h2>
-          <p className="text-neutral-400 text-base sm:text-lg max-w-2xl font-normal">
-            Each teammate has its own avatar, persona, job specialization, and
-            execution habits. Create or customize your own bots in seconds.
+          <p className="text-zinc-400 text-sm max-w-xl">
+            Each teammate has its own avatar, persona, job specialization, and tool capabilities.
           </p>
         </div>
 
         {/* Fleet Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {AGENT_FLEET.map((agent) => (
             <div
               key={agent.name}
-              className="rounded-2xl border border-neutral-800/80 bg-neutral-950/50 p-6 flex flex-col justify-between hover:border-neutral-700 transition-colors group"
+              className="rounded-md border border-zinc-800 bg-[#121215] p-4 flex flex-col justify-between hover:border-zinc-700 transition-colors"
             >
               <div>
-                <div className="flex items-center gap-3.5 mb-4">
-                  <div className="size-11 rounded-xl overflow-hidden bg-neutral-900 border border-neutral-800 flex items-center justify-center shrink-0">
-                    <SeedAvatar seed={agent.avatar} size={44} />
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="size-9 rounded-md overflow-hidden bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
+                    <SeedAvatar seed={agent.avatar} size={36} />
                   </div>
-                  <div>
-                    <h3 className="text-base font-semibold text-white leading-tight">
+                  <div className="min-w-0">
+                    <h3 className="text-xs font-semibold text-zinc-100 truncate">
                       {agent.name}
                     </h3>
-                    <span className="text-xs text-neutral-400">
+                    <span className="text-[11px] text-zinc-400 font-mono block truncate">
                       {agent.role}
                     </span>
                   </div>
                 </div>
 
-                <Badge
-                  variant="secondary"
-                  className="mb-4 text-[10px] font-mono font-normal rounded-full bg-neutral-900 text-neutral-300 border border-neutral-800"
-                >
-                  {agent.badge}
-                </Badge>
+                <div className="mb-3">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-900 text-zinc-300 border border-zinc-800">
+                    {agent.badge}
+                  </span>
+                </div>
 
-                <p className="text-xs text-neutral-400 leading-relaxed mb-6 font-normal">
+                <p className="text-xs text-zinc-400 leading-relaxed mb-4">
                   {agent.description}
                 </p>
               </div>
 
-              <div className="pt-4 border-t border-neutral-900 flex flex-wrap gap-1.5">
+              <div className="pt-3 border-t border-zinc-800/60 flex flex-wrap gap-1">
                 {agent.tools.map((t) => (
                   <span
                     key={t}
-                    className="px-2 py-0.5 rounded text-[10px] font-mono bg-neutral-900/80 text-neutral-400 border border-neutral-800"
+                    className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-zinc-950 text-zinc-400 border border-zinc-800"
                   >
                     {t}
                   </span>
@@ -604,44 +655,44 @@ export function LandingPageView() {
         </div>
       </section>
 
-      {/* Footer (x.ai style) */}
-      <footer className="border-t border-neutral-900 py-12 px-4 sm:px-6 max-w-7xl mx-auto text-xs text-neutral-500">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-6 mb-8">
-          <div className="flex items-center gap-3">
+      {/* Footer */}
+      <footer className="border-t border-zinc-800 py-10 px-4 sm:px-6 max-w-7xl mx-auto text-xs font-mono text-zinc-500">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-2.5">
             <Image
               src="/Logo.svg"
               alt="Genichiro"
-              width={20}
-              height={18}
-              className="h-4.5 w-auto object-contain opacity-80"
+              width={18}
+              height={16}
+              className="h-4 w-auto object-contain opacity-80"
             />
-            <span className="font-semibold text-sm text-neutral-300">
+            <span className="font-semibold text-xs text-zinc-300">
               Genichiro
             </span>
-            <span className="text-neutral-600">·</span>
+            <span className="text-zinc-700">·</span>
             <span>AI Worker Team Workspace</span>
           </div>
 
-          <div className="flex items-center gap-2 text-[11px] font-mono text-neutral-400">
-            <span className="size-2 rounded-full bg-emerald-500" />
-            <span>All Systems Operational</span>
+          <div className="flex items-center gap-2 text-[11px] text-zinc-400">
+            <span className="size-1.5 rounded-full bg-emerald-500" />
+            <span>Systems Online</span>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-neutral-900/60 text-[11px]">
-          <p>© 2026 Genichiro AI Worker Team. All rights reserved.</p>
-          <div className="flex items-center gap-5">
-            <a href="#capabilities" className="hover:text-neutral-300 transition-colors">
-              Capabilities
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-zinc-800/60 text-[11px]">
+          <p>© 2026 Genichiro. All rights reserved.</p>
+          <div className="flex items-center gap-4 text-zinc-400">
+            <a href="#capabilities" className="hover:text-zinc-200 transition-colors">
+              capabilities
             </a>
-            <a href="#agents" className="hover:text-neutral-300 transition-colors">
-              Agents
+            <a href="#preview" className="hover:text-zinc-200 transition-colors">
+              workstation
             </a>
-            <a href="#sandbox" className="hover:text-neutral-300 transition-colors">
-              Daytona
+            <a href="#agents" className="hover:text-zinc-200 transition-colors">
+              agents
             </a>
-            <Link href="/settings" className="hover:text-neutral-300 transition-colors">
-              Settings
+            <Link href="/settings" className="hover:text-zinc-200 transition-colors">
+              settings
             </Link>
           </div>
         </div>

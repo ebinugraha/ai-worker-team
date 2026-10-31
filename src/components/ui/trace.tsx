@@ -33,7 +33,7 @@ function TraceLine({
       data-slot="trace-line"
       data-status={status}
       className={cn(
-        "flex w-fit max-w-full min-w-0 items-center gap-2 text-sm text-muted-foreground transition-colors in-[a,button]:cursor-pointer in-[a:hover,button:hover]:text-foreground data-[status=error]:text-destructive data-[status=error]:in-[a:hover,button:hover]:text-destructive data-[status=pending]:opacity-60 data-[status=running]:*:data-[slot=trace-title]:shimmer",
+        "flex w-fit max-w-full min-w-0 items-center gap-2 text-sm sm:text-base text-muted-foreground transition-colors in-[a,button]:cursor-pointer in-[a:hover,button:hover]:text-foreground data-[status=error]:text-destructive data-[status=error]:in-[a:hover,button:hover]:text-destructive data-[status=pending]:opacity-60 data-[status=running]:*:data-[slot=trace-title]:shimmer",
         className
       )}
       {...props}
@@ -134,13 +134,13 @@ function TraceCollapsibleContent({
   return (
     <CollapsibleContent
       data-slot="trace-collapsible-content"
-      className="h-(--collapsible-panel-height) min-w-0 overflow-hidden transition-[height] duration-200 data-ending-style:h-0 data-starting-style:h-0"
+      className="h-(--collapsible-panel-height) min-w-0 overflow-hidden transition-[height] duration-150 data-ending-style:h-0 data-starting-style:h-0"
       {...props}
     >
       <div
         data-slot="trace-collapsible-content-inner"
         className={cn(
-          "mt-2 mb-1 ml-[calc(--spacing(2)-1px)] min-w-0 border-l pr-1 pl-4 leading-relaxed wrap-break-word text-muted-foreground",
+          "mt-1.5 mb-1 ml-2 min-w-0 border-l border-border/70 pr-1 pl-3.5 leading-relaxed wrap-break-word text-muted-foreground",
           className
         )}
       >

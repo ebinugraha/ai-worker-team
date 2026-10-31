@@ -18,6 +18,7 @@ export const chats = pgTable(
     userId: text("user_id").notNull(),
     kind: chatKind("kind").default("direct").notNull(),
     name: text("name"),
+    latestRunId: text("latest_run_id"),
     lastMessagePreview: text("last_message_preview"),
     lastMessageAt: timestamp("last_message_at", {
       withTimezone: true,

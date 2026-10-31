@@ -18,6 +18,7 @@ import {
   LayersIcon,
   WrenchIcon,
   CheckIcon,
+  CheckCircle2Icon,
   CopyIcon,
   Maximize2Icon,
   AlertCircleIcon,
@@ -28,6 +29,7 @@ import {
   DownloadIcon,
   XIcon,
   ArrowRightLeftIcon,
+  ClockIcon,
 } from "lucide-react";
 import {
   Trace,
@@ -148,22 +150,22 @@ function BashToolView({
           <TraceLine status={isRunning ? "running" : hasError ? "error" : undefined}>
             <TraceIcon>
               {isRunning ? (
-                <Loader2Icon className="size-3.5 animate-spin text-amber-400" />
+                <Loader2Icon className="size-4 animate-spin text-zinc-400" />
               ) : hasError ? (
-                <AlertCircleIcon className="size-3.5 text-destructive" />
+                <AlertCircleIcon className="size-4 text-destructive" />
               ) : (
-                <TerminalIcon className="size-3.5 text-neutral-300" />
+                <TerminalIcon className="size-4 text-neutral-300" />
               )}
             </TraceIcon>
-            <TraceTitle className="font-mono text-xs text-neutral-200">
+            <TraceTitle className="font-mono text-sm sm:text-base text-zinc-100 font-medium">
               $ {command.length > 55 ? `${command.slice(0, 52)}...` : command}
             </TraceTitle>
             {output?.exitCode !== undefined && (
               <TraceDescription
                 className={cn(
-                  "text-[10px] px-1.5 py-0.5 rounded-sm font-mono",
+                  "text-xs px-2 py-0.5 rounded-sm font-mono",
                   output.exitCode === 0
-                    ? "bg-emerald-950/60 text-emerald-400 border border-emerald-800/40"
+                    ? "bg-zinc-800 text-zinc-300 border border-zinc-700"
                     : "bg-destructive/20 text-destructive border border-destructive/40"
                 )}
               >
@@ -174,12 +176,12 @@ function BashToolView({
         </TraceCollapsibleTrigger>
         <TraceCollapsibleContent className="mt-1.5 space-y-2">
           {input?.cwd && (
-            <div className="text-[11px] text-neutral-400 font-mono">
-              cwd: <span className="text-neutral-300">{input.cwd}</span>
+            <div className="text-xs sm:text-sm text-neutral-300 font-mono">
+              cwd: <span className="text-neutral-200">{input.cwd}</span>
             </div>
           )}
-          <div className="rounded-lg bg-neutral-950 border border-neutral-800/80 p-2.5 font-mono text-xs overflow-hidden">
-            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-neutral-800/60 text-[11px] text-neutral-400">
+          <div className="rounded-lg bg-neutral-950 border border-neutral-800/80 p-3 font-mono text-xs sm:text-sm overflow-hidden">
+            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-neutral-800/60 text-xs text-neutral-400">
               <span className="flex items-center gap-1.5">
                 <TerminalIcon className="size-3 text-neutral-400" />
                 terminal
@@ -1084,6 +1086,343 @@ function GenericToolView({
   );
 }
 
+interface FileSystemUnifiedInput {
+  action?: "read" | "write" | "list";
+  path?: string;
+  content?: string;
+  maxDepth?: number;
+}
+
+interface FileSystemUnifiedOutput {
+  success?: boolean;
+  action?: string;
+  path?: string;
+  content?: string;
+  entries?: Array<{ name: string; isDirectory?: boolean; size?: number }>;
+  size?: number;
+  bytesWritten?: number;
+  error?: string;
+}
+
+function FileSystemUnifiedToolView({
+  input,
+  output,
+  state,
+}: {
+  input?: FileSystemUnifiedInput;
+  output?: FileSystemUnifiedOutput;
+  state: string;
+}) {
+  const isRunning = state === "input-streaming" || state === "input-available";
+  const hasError = state === "output-error" || (output && output.success === false);
+  const action = (output?.action || input?.action || "read").toLowerCase();
+  const path = output?.path || input?.path || "workspace";
+  const actionLabel = action === "write" ? "WRITE" : action === "list" ? "LIST" : "READ";
+  const [isOpen, setIsOpen] = React.useState(hasError || Boolean(output?.content));
+
+  return (
+    <Trace className="my-1 w-full">
+      <TraceCollapsible open={isOpen} onOpenChange={setIsOpen}>
+        <TraceCollapsibleTrigger>
+          <TraceLine status={isRunning ? "running" : hasError ? "error" : undefined}>
+            <TraceIcon>
+              {isRunning ? (
+                <Loader2Icon className="size-4 animate-spin text-zinc-400" />
+              ) : hasError ? (
+                <AlertCircleIcon className="size-3.5 text-rose-400" />
+              ) : action === "write" ? (
+                <FileEditIcon className="size-3.5 text-zinc-300" />
+              ) : action === "list" ? (
+                <FolderTreeIcon className="size-3.5 text-zinc-300" />
+              ) : (
+                <FileTextIcon className="size-3.5 text-zinc-300" />
+              )}
+            </TraceIcon>
+            <TraceTitle className="font-mono text-sm sm:text-base text-zinc-100 font-medium">
+              <span className="text-zinc-400 font-semibold mr-1.5">file_system</span>
+              <span className="px-2 py-0.5 rounded bg-zinc-800 text-xs text-zinc-200 font-mono mr-1.5">{actionLabel}</span>
+              <span className="text-zinc-200">{path}</span>
+            </TraceTitle>
+            {output?.size !== undefined && (
+              <TraceDescription className="text-xs font-mono">
+                {output.size} bytes
+              </TraceDescription>
+            )}
+            {output?.bytesWritten !== undefined && (
+              <TraceDescription className="text-xs font-mono">
+                {output.bytesWritten} bytes
+              </TraceDescription>
+            )}
+          </TraceLine>
+        </TraceCollapsibleTrigger>
+        <TraceCollapsibleContent className="mt-1.5">
+          <div className="rounded-md bg-[#050505] border border-zinc-800/80 p-3 font-mono text-xs sm:text-sm overflow-hidden">
+            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-zinc-800/80 text-xs text-zinc-400">
+              <span className="truncate">{path}</span>
+              {output?.content && <CopyButton text={output.content} />}
+            </div>
+            {output?.content ? (
+              <pre className="text-zinc-300 whitespace-pre-wrap select-text max-h-60 overflow-y-auto leading-relaxed">
+                {output.content}
+              </pre>
+            ) : input?.content ? (
+              <pre className="text-zinc-300 whitespace-pre-wrap select-text max-h-60 overflow-y-auto leading-relaxed">
+                {input.content}
+              </pre>
+            ) : output?.entries && output.entries.length > 0 ? (
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {output.entries.map((entry, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5 text-zinc-300 text-[11px]">
+                    {entry.isDirectory ? (
+                      <FolderIcon className="size-3 text-amber-400 shrink-0" />
+                    ) : (
+                      <FileIcon className="size-3 text-zinc-400 shrink-0" />
+                    )}
+                    <span>{entry.name}</span>
+                    {entry.size !== undefined && (
+                      <span className="text-zinc-600 ml-auto font-mono text-[10px]">{entry.size} B</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : output?.error ? (
+              <div className="text-rose-400 text-xs">{output.error}</div>
+            ) : (
+              <div className="text-zinc-500 italic text-[11px]">
+                {isRunning ? "Executing filesystem operation..." : "Done."}
+              </div>
+            )}
+          </div>
+        </TraceCollapsibleContent>
+      </TraceCollapsible>
+    </Trace>
+  );
+}
+
+interface ComputerUseUnifiedInput {
+  action?: string;
+  x?: number;
+  y?: number;
+  text?: string;
+  key?: string;
+  direction?: string;
+  amount?: number;
+  seconds?: number;
+}
+
+interface ComputerUseUnifiedOutput {
+  success?: boolean;
+  action?: string;
+  x?: number;
+  y?: number;
+  screenshot?: string;
+  note?: string;
+  error?: string;
+}
+
+function ComputerUseUnifiedToolView({
+  input,
+  output,
+  state,
+}: {
+  input?: ComputerUseUnifiedInput;
+  output?: ComputerUseUnifiedOutput;
+  state: string;
+}) {
+  const isRunning = state === "input-streaming" || state === "input-available";
+  const hasError = state === "output-error" || (output && output.success === false);
+  const action = (output?.action || input?.action || "action").toUpperCase();
+  const x = output?.x ?? input?.x;
+  const y = output?.y ?? input?.y;
+  const text = input?.text;
+  const key = input?.key;
+  const screenshot = output?.screenshot;
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [isZoomOpen, setIsZoomOpen] = React.useState(false);
+
+  return (
+    <Trace className="my-1 w-full">
+      <TraceCollapsible open={isOpen} onOpenChange={setIsOpen}>
+        <TraceCollapsibleTrigger>
+          <TraceLine status={isRunning ? "running" : hasError ? "error" : undefined}>
+            <TraceIcon>
+              {isRunning ? (
+                <Loader2Icon className="size-4 animate-spin text-zinc-400" />
+              ) : hasError ? (
+                <AlertCircleIcon className="size-3.5 text-rose-400" />
+              ) : (
+                <MousePointerClickIcon className="size-3.5 text-zinc-300" />
+              )}
+            </TraceIcon>
+            <TraceTitle className="font-mono text-sm sm:text-base text-zinc-100 font-medium">
+              <span className="text-zinc-400 font-semibold mr-1.5">computer_use</span>
+              <span className="px-2 py-0.5 rounded bg-zinc-800 text-xs text-zinc-200 font-mono mr-1.5">{action}</span>
+              {x !== undefined && y !== undefined ? (
+                <span className="text-zinc-300 font-mono tabular-nums">({x}, {y})</span>
+              ) : text ? (
+                <span className="text-zinc-200 font-mono truncate max-w-[200px]">&quot;{text}&quot;</span>
+              ) : key ? (
+                <span className="text-zinc-200 font-mono">[{key}]</span>
+              ) : null}
+            </TraceTitle>
+            {screenshot && (
+              <TraceDescription className="text-xs font-mono text-zinc-400">
+                screenshot
+              </TraceDescription>
+            )}
+          </TraceLine>
+        </TraceCollapsibleTrigger>
+        <TraceCollapsibleContent className="mt-1.5">
+          <div className="rounded-md bg-[#050505] border border-zinc-800/80 p-3 font-mono text-xs sm:text-sm space-y-2">
+            {output?.note && (
+              <div className="text-xs text-zinc-300">{output.note}</div>
+            )}
+            {output?.error && (
+              <div className="text-rose-400 text-xs sm:text-sm">{output.error}</div>
+            )}
+            {screenshot && (
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                  <span>Visual Screen Feedback (0-1000 Grid & Click Marker):</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsZoomOpen(true)}
+                    className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200 cursor-pointer"
+                  >
+                    <Maximize2Icon className="size-3" />
+                    <span>Expand</span>
+                  </button>
+                </div>
+                <div
+                  onClick={() => setIsZoomOpen(true)}
+                  className="relative cursor-pointer overflow-hidden rounded border border-zinc-800 bg-black aspect-video max-w-sm flex items-center justify-center group"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`data:image/png;base64,${screenshot}`}
+                    alt="VNC Screen Action"
+                    className="w-full h-full object-contain"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-xs text-white">
+                    <Maximize2Icon className="size-3.5" />
+                    <span>Perbesar Layar</span>
+                  </div>
+                </div>
+
+                <Dialog open={isZoomOpen} onOpenChange={setIsZoomOpen}>
+                  <DialogContent className="max-w-4xl p-2 bg-[#050505] border border-zinc-800 text-zinc-200">
+                    <DialogHeader className="p-2 border-b border-zinc-800">
+                      <DialogTitle className="text-xs font-mono">
+                        VNC Screen Capture — {action} {x !== undefined ? `(${x}, ${y})` : ""}
+                      </DialogTitle>
+                    </DialogHeader>
+                    <div className="p-2 flex items-center justify-center bg-black rounded">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`data:image/png;base64,${screenshot}`}
+                        alt="Fullsize VNC Screen"
+                        className="max-h-[75vh] w-auto object-contain"
+                      />
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            )}
+          </div>
+        </TraceCollapsibleContent>
+      </TraceCollapsible>
+    </Trace>
+  );
+}
+
+export function FinishTaskToolView({
+  input,
+  output,
+  state,
+}: {
+  input?: { summary?: string };
+  output?: { summary?: string };
+  state: string;
+}) {
+  const isRunning = state === "input-streaming" || state === "input-available";
+  const summary =
+    output?.summary || input?.summary || "Seluruh instruksi berhasil diselesaikan.";
+
+  return (
+    <div className="w-full max-w-full min-w-0 my-3 rounded-xl bg-zinc-900 border border-zinc-800 p-4 sm:p-5 text-sm text-zinc-200">
+      <div className="flex items-start gap-3.5 min-w-0">
+        {isRunning ? (
+          <Loader2Icon className="size-5 animate-spin text-zinc-400 shrink-0 mt-0.5" />
+        ) : (
+          <CheckCircle2Icon className="size-5 text-zinc-300 shrink-0 mt-0.5" />
+        )}
+        <div className="flex-1 min-w-0 space-y-2">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="font-semibold text-zinc-100 text-sm sm:text-base shrink-0">
+              Tugas Selesai
+            </span>
+            <span className="text-xs text-zinc-400">
+              {isRunning ? "sedang menyelesaikan..." : "berhasil"}
+            </span>
+          </div>
+          <div className="text-zinc-200 text-sm sm:text-base font-sans leading-relaxed break-words whitespace-pre-wrap select-text">
+            {summary}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export interface WaitInput {
+  duration?: number;
+  reason?: string;
+}
+
+export interface WaitOutput {
+  success: boolean;
+  duration?: number;
+  reason?: string;
+}
+
+export function WaitToolView({
+  input,
+  output,
+  state,
+}: {
+  input?: WaitInput;
+  output?: WaitOutput;
+  state?: string;
+}) {
+  const duration = output?.duration ?? input?.duration ?? 5;
+  const reason =
+    output?.reason || input?.reason || "Menunggu proses atau layar...";
+  const isRunning = state === "input-streaming" || state === "input-available";
+
+  return (
+    <Trace className="my-2">
+      <TraceLine status={isRunning ? "running" : undefined}>
+        <TraceIcon>
+          <ClockIcon
+            className={cn(
+              "size-4",
+              isRunning ? "animate-spin text-zinc-400" : "text-zinc-400"
+            )}
+          />
+        </TraceIcon>
+        <TraceTitle className="text-sm sm:text-base font-semibold text-zinc-200">
+          {isRunning
+            ? `Menunggu ${duration} detik...`
+            : `Selesai Menunggu (${duration}s)`}
+        </TraceTitle>
+        <TraceDescription className="text-xs sm:text-sm text-zinc-400 truncate max-w-[320px]">
+          {reason}
+        </TraceDescription>
+      </TraceLine>
+    </Trace>
+  );
+}
+
 export function ChatToolView({ part }: ChatToolViewProps) {
   const toolName = getToolName(part);
   const input = part.input;
@@ -1091,19 +1430,45 @@ export function ChatToolView({ part }: ChatToolViewProps) {
   const state = part.state || "";
 
   switch (toolName) {
-    case "handoff":
-      return (
-        <HandoffToolView
-          input={input as HandoffInput}
-          output={output as HandoffOutput}
-          state={state}
-        />
-      );
+    case "bash_exec":
     case "bash":
       return (
         <BashToolView
           input={input as BashInput}
           output={output as BashOutput}
+          state={state}
+        />
+      );
+    case "file_system":
+      return (
+        <FileSystemUnifiedToolView
+          input={input as FileSystemUnifiedInput}
+          output={output as FileSystemUnifiedOutput}
+          state={state}
+        />
+      );
+    case "computer_use":
+      return (
+        <ComputerUseUnifiedToolView
+          input={input as ComputerUseUnifiedInput}
+          output={output as ComputerUseUnifiedOutput}
+          state={state}
+        />
+      );
+    case "finish_task":
+      return (
+        <FinishTaskToolView
+          input={input as { summary?: string }}
+          output={output as { summary?: string }}
+          state={state}
+        />
+      );
+    case "handoff":
+    case "handoffTool":
+      return (
+        <HandoffToolView
+          input={input as HandoffInput}
+          output={output as HandoffOutput}
           state={state}
         />
       );
@@ -1149,6 +1514,15 @@ export function ChatToolView({ part }: ChatToolViewProps) {
       return (
         <KeyboardPressToolView
           input={input as KeyboardPressInput}
+          state={state}
+        />
+      );
+    case "wait":
+    case "waitTool":
+      return (
+        <WaitToolView
+          input={input as WaitInput}
+          output={output as WaitOutput}
           state={state}
         />
       );

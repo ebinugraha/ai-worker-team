@@ -10,8 +10,10 @@ import { type ModelMessage } from "@ai-sdk/provider-utils";
 import { stepCountIs, type JSONValue } from "ai";
 import { db, bots, chats, chatMembers, userSettings } from "@/db";
 import { eq } from "drizzle-orm";
+import { formatChatPreview } from "@/lib/clean-text";
+import { decryptApiKey } from "@/lib/encryption";
 import { sandboxTools, sandboxContextStorage } from "./tools";
-import { getDaytonaClient } from "@/lib/daytona";
+import { ensureSandboxActive, withSandboxLock } from "@/lib/daytona";
 
 export type ChatAgentUIMessage = InferChatUIMessageFromTools<
   typeof sandboxTools
@@ -201,12 +203,189 @@ function sanitizeMessagesForModel(
   });
 }
 
+/**
+ * Prunes historical base64 screenshots across all message parts and tool outputs.
+ * Keeps at most the 2 latest screenshots to prevent context rot while preserving full reasoning history.
+ */
+export function pruneMessageHistory(
+  rawMessages: ModelMessage[]
+): ModelMessage[] {
+  if (!rawMessages || rawMessages.length === 0) return rawMessages;
+
+  const cloned = JSON.parse(JSON.stringify(rawMessages)) as ModelMessage[];
+
+  type ImageRef =
+    | { kind: "part-file"; mIdx: number; pIdx: number }
+    | { kind: "tool-content-file"; mIdx: number; pIdx: number; vIdx: number }
+    | { kind: "tool-json-screenshot"; mIdx: number; pIdx: number }
+    | { kind: "content-file"; mIdx: number; cIdx: number };
+
+  const imageRefs: ImageRef[] = [];
+
+  for (let mIdx = 0; mIdx < cloned.length; mIdx++) {
+    const msg = cloned[mIdx] as Record<string, unknown>;
+    if (Array.isArray(msg.parts)) {
+      for (let pIdx = 0; pIdx < msg.parts.length; pIdx++) {
+        const part = msg.parts[pIdx] as Record<string, unknown> | undefined;
+        if (
+          part &&
+          part.type === "file" &&
+          typeof part.mediaType === "string" &&
+          part.mediaType.startsWith("image/")
+        ) {
+          imageRefs.push({ kind: "part-file", mIdx, pIdx });
+        } else if (
+          part &&
+          part.type === "tool-result" &&
+          typeof part.output === "object" &&
+          part.output !== null
+        ) {
+          const out = part.output as Record<string, unknown>;
+          if (out.type === "content" && Array.isArray(out.value)) {
+            for (let vIdx = 0; vIdx < out.value.length; vIdx++) {
+              const item = out.value[vIdx] as
+                | Record<string, unknown>
+                | undefined;
+              if (
+                item &&
+                item.type === "file" &&
+                typeof item.mediaType === "string" &&
+                item.mediaType.startsWith("image/")
+              ) {
+                imageRefs.push({
+                  kind: "tool-content-file",
+                  mIdx,
+                  pIdx,
+                  vIdx,
+                });
+              }
+            }
+          }
+          if (
+            out.type === "json" &&
+            typeof out.value === "object" &&
+            out.value !== null
+          ) {
+            const jsonVal = out.value as Record<string, unknown>;
+            if (
+              typeof jsonVal.screenshot === "string" &&
+              jsonVal.screenshot.length > 500
+            ) {
+              imageRefs.push({ kind: "tool-json-screenshot", mIdx, pIdx });
+            }
+          }
+        }
+      }
+    }
+
+    if (Array.isArray(msg.content)) {
+      for (let cIdx = 0; cIdx < msg.content.length; cIdx++) {
+        const item = msg.content[cIdx] as
+          | Record<string, unknown>
+          | undefined;
+        if (
+          item &&
+          item.type === "file" &&
+          typeof item.mediaType === "string" &&
+          item.mediaType.startsWith("image/")
+        ) {
+          imageRefs.push({ kind: "content-file", mIdx, cIdx });
+        } else if (
+          item &&
+          item.type === "tool-result" &&
+          typeof item.output === "object" &&
+          item.output !== null
+        ) {
+          const out = item.output as Record<string, unknown>;
+          if (out.type === "content" && Array.isArray(out.value)) {
+            for (let vIdx = 0; vIdx < out.value.length; vIdx++) {
+              const vItem = out.value[vIdx] as
+                | Record<string, unknown>
+                | undefined;
+              if (
+                vItem &&
+                vItem.type === "file" &&
+                typeof vItem.mediaType === "string" &&
+                vItem.mediaType.startsWith("image/")
+              ) {
+                imageRefs.push({
+                  kind: "tool-content-file",
+                  mIdx,
+                  pIdx: cIdx,
+                  vIdx,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Keep only the last 2 screenshots
+  if (imageRefs.length > 2) {
+    const toPrune = imageRefs.slice(0, imageRefs.length - 2);
+    for (const ref of toPrune) {
+      const msg = cloned[ref.mIdx] as Record<string, unknown>;
+      if (ref.kind === "part-file" && Array.isArray(msg.parts)) {
+        msg.parts[ref.pIdx] = {
+          type: "text",
+          text: "[Screenshot lama dihapus untuk menghemat konteks]",
+        };
+      } else if (ref.kind === "tool-content-file") {
+        const partsArr = Array.isArray(msg.parts)
+          ? (msg.parts as unknown[])
+          : undefined;
+        const contentArr = Array.isArray(msg.content)
+          ? (msg.content as unknown[])
+          : undefined;
+        const target = (
+          partsArr ? partsArr[ref.pIdx] : contentArr?.[ref.pIdx]
+        ) as Record<string, unknown> | undefined;
+        const out = target?.output as Record<string, unknown> | undefined;
+        const valArr = out?.value;
+        if (Array.isArray(valArr) && valArr[ref.vIdx]) {
+          (valArr as Record<string, unknown>[])[ref.vIdx] = {
+            type: "text",
+            text: "[Screenshot lama dihapus untuk menghemat konteks]",
+          };
+        }
+      } else if (ref.kind === "tool-json-screenshot" && Array.isArray(msg.parts)) {
+        const target = msg.parts[ref.pIdx] as Record<string, unknown> | undefined;
+        const out = target?.output as Record<string, unknown> | undefined;
+        if (typeof out?.value === "object" && out.value !== null) {
+          (out.value as Record<string, unknown>).screenshot =
+            "[Screenshot lama dihapus untuk menghemat konteks]";
+        }
+      } else if (ref.kind === "content-file" && Array.isArray(msg.content)) {
+        msg.content[ref.cIdx] = {
+          type: "text",
+          text: "[Screenshot lama dihapus untuk menghemat konteks]",
+        };
+      }
+    }
+  }
+
+  return cloned;
+}
+
 export const chatAgent = chat.agent({
   id: "chat-agent",
   storage: defaultStorage,
   tools: sandboxTools,
-  run: async ({ messages, tools, chatId, signal, streamText, clientData }) => {
+  run: async ({ messages, tools, chatId, signal, streamText, clientData, ctx }) => {
     const requestedBotId = (clientData as { botId?: string } | undefined)?.botId;
+
+    // Track latest active Trigger.dev run ID for stopChatGeneration
+    const currentRunId = (ctx as { run?: { id?: string } } | undefined)?.run?.id;
+    if (chatId && currentRunId) {
+      db.update(chats)
+        .set({ latestRunId: currentRunId })
+        .where(eq(chats.id, chatId))
+        .catch((err) => {
+          console.error("Failed to update latestRunId in chats:", err);
+        });
+    }
 
     let isGroup = false;
     let chatName = "";
@@ -220,8 +399,16 @@ export const chatAgent = chat.agent({
     }> = [];
 
     let ownerUserId: string | null = null;
+    let activeBot: {
+      id: string;
+      name: string;
+      avatar: string;
+      job: string;
+      instruction: string | null;
+      sandboxId: string | null;
+    } | null = null;
 
-    // 1. Check if chatId is a group chat in `chats` table
+    // 1. Check if chatId is in `chats` table (direct or group)
     if (chatId) {
       try {
         const [chatRecord] = await db
@@ -254,21 +441,63 @@ export const chatAgent = chat.agent({
               .from(chatMembers)
               .innerJoin(bots, eq(chatMembers.botId, bots.id))
               .where(eq(chatMembers.chatId, chatId));
+          } else if (chatRecord.kind === "direct") {
+            const [directBot] = await db
+              .select({
+                id: bots.id,
+                name: bots.name,
+                avatar: bots.avatar,
+                job: bots.job,
+                instruction: bots.instruction,
+                sandboxId: bots.sandboxId,
+              })
+              .from(chatMembers)
+              .innerJoin(bots, eq(chatMembers.botId, bots.id))
+              .where(eq(chatMembers.chatId, chatId))
+              .limit(1);
+
+            if (directBot) {
+              activeBot = directBot;
+            }
+          }
+        } else {
+          // If not in chats table yet, check if chatId is a direct bot
+          const [botRecord] = await db
+            .select()
+            .from(bots)
+            .where(eq(bots.id, chatId))
+            .limit(1);
+
+          if (botRecord) {
+            ownerUserId = botRecord.userId;
+            activeBot = botRecord;
+
+            await db
+              .insert(chats)
+              .values({
+                id: botRecord.id,
+                userId: botRecord.userId,
+                kind: "direct",
+                name: botRecord.name,
+                createdAt: botRecord.createdAt,
+                lastMessageAt: new Date(),
+              })
+              .onConflictDoNothing();
+
+            await db
+              .insert(chatMembers)
+              .values({
+                chatId: botRecord.id,
+                botId: botRecord.id,
+                joinedAt: botRecord.createdAt,
+              })
+              .onConflictDoNothing();
           }
         }
       } catch (err) {
-        console.error("Failed to query group chat record:", err);
+        console.error("Failed to query chat/bot record in trigger:", err);
       }
     }
-
-    let activeBot: {
-      id: string;
-      name: string;
-      avatar: string;
-      job: string;
-      instruction: string | null;
-      sandboxId: string | null;
-    } | null = null;
 
     // 2. Identify the active bot for this turn
     if (requestedBotId) {
@@ -339,11 +568,7 @@ export const chatAgent = chat.agent({
     let botMemoryContent: string | null = null;
     if (activeBot?.sandboxId) {
       try {
-        const daytona = getDaytonaClient();
-        const sb = await daytona.get(activeBot.sandboxId);
-        if (sb.state === "stopped") {
-          await sb.start();
-        }
+        const sb = await ensureSandboxActive(activeBot.sandboxId);
         const buf = await sb.fs.downloadFile("MEMORY.md");
         const text = buf.toString("utf-8").trim();
         if (text) {
@@ -352,8 +577,7 @@ export const chatAgent = chat.agent({
       } catch {
         // If MEMORY.md does not exist yet or failed to download, initialize it
         try {
-          const daytona = getDaytonaClient();
-          const sb = await daytona.get(activeBot.sandboxId);
+          const sb = await ensureSandboxActive(activeBot.sandboxId);
           await sb.fs.uploadFile(Buffer.from(""), "MEMORY.md");
         } catch {
           // ignore fallback initialization error
@@ -364,11 +588,7 @@ export const chatAgent = chat.agent({
     // Ensure all attachments sent by the user in this conversation are synced into the active bot's sandbox
     if (activeBot?.sandboxId) {
       try {
-        const daytona = getDaytonaClient();
-        const sb = await daytona.get(activeBot.sandboxId);
-        if (sb.state === "stopped") {
-          await sb.start();
-        }
+        const sb = await ensureSandboxActive(activeBot.sandboxId);
 
         for (const msg of messages) {
           if (msg.role === "user") {
@@ -501,17 +721,15 @@ You know this information and can reference it directly when replying to the use
       systemPromptParts.push(`=== TOOLS & CAPABILITIES ===
 You have access to the following tools:
 1. \`handoff\`: Transfer the conversation or task to another teammate bot in this group chat if their specialty is a better fit.
-2. Computer Sandbox Tools (available if you have an active sandbox environment):
-   - \`bash\`: Run terminal commands in your Linux sandbox environment.
-   - \`readFile\`: Read file contents from the sandbox filesystem (e.g. 'MEMORY.md').
-   - \`writeFile\`: Create or update files in the sandbox filesystem (e.g. 'MEMORY.md').
-   - \`listFiles\`: List files and directory structures in the sandbox.
-   - \`openImage\`: Open and display an image on the sandbox desktop screen (:0) to show it on the live VNC preview.
-   - \`mouseClick\`, \`mouseMove\`, \`mouseScroll\`: GUI mouse controls.
-   - \`keyboardType\`, \`keyboardPress\`: GUI keyboard controls.
-   - \`viewScreen\`: Internal screenshot for your visual perception (never render raw base64 image in chat).
-   - \`showScreen\`: Capture and show screenshot directly to the user in chat when requested.
-   - \`getDisplayInfo\`: View screen dimensions.
+2. Direct Container Execution & Filesystem Tools:
+   - \`bash_exec\`: Run bash commands directly in the Linux container in the background without VNC. Returns stdout, stderr, and exitCode. Use for all terminal commands, package management (npm, pip, apt), running builds, git commands, and starting servers.
+   - \`file_system\`: Direct filesystem operations (\`read\`, \`write\`, \`list\`) without opening GUI text editors in VNC. Use for reading source code, modifying files, or updating \`MEMORY.md\`.
+3. Computer Use & Visual GUI Automation (VNC Screen):
+   - \`computer_use\`: GUI automation (\`click\`, \`double_click\`, \`right_click\`, \`type\`, \`key\`, \`scroll\`, \`wait\`). Coordinates (x, y) MUST be on a 0 to 1000 scale. Returns a screenshot with 0-1000 coordinate grid overlay and red click dot marker.
+   - \`showScreen\`: Capture and show desktop screenshot directly to the user in chat when requested.
+   - \`openImage\`: Open and display an image on the sandbox desktop screen (:0).
+4. Official Task Completion:
+   - \`finish_task\`: Official signal that the user's task is 100% complete and fully verified. MUST be called as the final conclusion.
 
 CRITICAL RULES:
 - When a handoff is warranted, call the \`handoff\` tool before concluding your turn.
@@ -568,19 +786,15 @@ When the user attaches or uploads files (ZIP archives, screenshots, code, data f
 
 === AVAILABLE TOOLS & CAPABILITIES ===
 You have full computer and sandbox access via your tools:
-- bash: Execute terminal commands inside the Linux environment.
-- readFile: Read file contents from the sandbox filesystem (e.g. 'MEMORY.md').
-- writeFile: Create or update files in the sandbox filesystem (e.g. 'MEMORY.md').
-- listFiles: List files and directory structures.
-- openImage: Open and display an image on the sandbox desktop screen (:0) to show it on the live VNC preview.
-- mouseClick: Click on screen coordinates.
-- mouseScroll: Scroll the mouse wheel.
-- mouseMove: Position the mouse cursor.
-- keyboardType: Type text into active windows.
-- keyboardPress: Press specific keys or shortcuts.
-- viewScreen: Take a screenshot to inspect what is on screen for internal reasoning. Never render this image in chat.
-- showScreen: Capture and show the desktop screen directly to the user in chat when requested.
-- getDisplayInfo: Check display resolution.
+1. Direct Container Execution & Filesystem Tools:
+   - \`bash_exec\`: Run bash commands directly in the Linux container in the background without VNC. Returns stdout, stderr, and exitCode. Use for all terminal commands, package management (npm, pip, apt), running builds, git commands, and starting servers.
+   - \`file_system\`: Direct filesystem operations (\`read\`, \`write\`, \`list\`) without opening GUI text editors in VNC. Use for reading source code, modifying files, or updating \`MEMORY.md\`.
+2. Computer Use & Visual GUI Automation (VNC Screen):
+   - \`computer_use\`: GUI automation (\`click\`, \`double_click\`, \`right_click\`, \`type\`, \`key\`, \`scroll\`, \`wait\`). Coordinates (x, y) MUST be on a 0 to 1000 scale. Returns a screenshot with 0-1000 coordinate grid overlay and red click dot marker.
+   - \`showScreen\`: Capture and show desktop screenshot directly to the user in chat when requested.
+   - \`openImage\`: Open and display an image on the sandbox desktop screen (:0).
+3. Official Task Completion:
+   - \`finish_task\`: Official signal that the user's task is 100% complete and fully verified. MUST be called as the final conclusion.
 
 Note: You are in a direct 1-on-1 private chat with the user. The \`handoff\` tool is not applicable here.
 
@@ -605,6 +819,59 @@ CRITICAL INSTRUCTIONS:
    - Berikan kesimpulan dan jawaban akhir yang jelas, ramah, dan tuntas kepada pengguna dalam Bahasa Indonesia. JANGAN PERNAH mengakhiri giliran tanpa teks feedback!`);
     } else {
       systemPromptParts.push("You are a helpful and intelligent AI teammate.");
+    }
+
+    if (activeBot) {
+      systemPromptParts.push(`### CORE OPERATING PRINCIPLES & SYSTEM GUIDELINES
+1. **MANDATORY STRUCTURED THINKING BEFORE TOOL CALLS:**
+   For EVERY turn before calling any tool or outputting an action, you must think step-by-step:
+   - **System Observation:** Describe current terminal output or VNC screen state (active windows, loading spinners, errors, shell prompts).
+   - **Previous Action Evaluation:** Did the previous command or click succeed based on the output/screen?
+   - **Plan:** What is the immediate next micro-step required to advance toward the user's goal?
+
+2. **STRICT TOOL PRIORITY (NO VNC FOR TERMINAL OR CODING):**
+   - **CLI & Commands:** ALWAYS use \`bash_exec\` for all terminal operations, installing dependencies, building projects, git, checking processes, or running servers. NEVER type commands through the VNC virtual keyboard!
+   - **File Editing:** ALWAYS use \`file_system\` (\`read\`, \`write\`, \`list\`) for reading or editing code. NEVER open text editors (nano/vim/gedit/vscode) in VNC!
+   - **GUI & Browser:** ONLY use \`computer_use\` for tasks that genuinely require a graphical interface (e.g. opening a web browser to test a web app, interacting with visual UI elements).
+   - Coordinates for \`computer_use\` MUST use the normalized 0 to 1000 scale.
+
+3. **ANTI-GHOSTING & VERIFICATION PROTOCOL:**
+   - NEVER assume an action succeeded without verifying the result. Verify terminal exit codes/stdout or check the next screenshot before concluding.
+   - If a background process, build, or web page is loading, call \`computer_use\` with \`action: "wait"\` (or the \`wait\` tool) instead of clicking randomly or stopping.
+   - Dilarang keras berhenti di tengah jalan tanpa memanggil tool \`finish_task\`!
+
+4. **SELF-CORRECTION VIA VISUAL GRID & RED CLICK DOT:**
+   - Every screenshot returned by \`computer_use\` is stamped with a 0-1000 ruler grid and a RED CIRCLE indicating your last click location.
+   - If the screen did not change after your click, your click missed or the target window was not focused. Re-check the grid coordinates and adjust your click. Do NOT repeat the exact same failed coordinates!
+
+5. **OFFICIAL TASK CONCLUSION (\`finish_task\`):**
+   - You MUST call \`finish_task({ summary: "..." })\` once and ONLY once all user requirements are 100% verified complete, tested, and ready.
+   - Calling \`finish_task\` is the ONLY authorized way to signal that work is completed.
+
+### MANDATORY RESPONSE FORMAT
+When executing actions on the VNC desktop, terminal, or GUI, for EVERY turn, you must think step-by-step before outputting your action. Structure your response strictly as follows:
+
+<thought>
+1. **Screen Observation:** Describe exactly what is currently visible on the screen/terminal (especially active windows, error messages, or whether the command is busy or idle).
+2. **Previous Action Evaluation:** Did my last action succeed based on current outputs?
+3. **Plan:** What is the immediate next micro-step required to reach the user's goal?
+</thought>
+
+<action>
+{
+  "type": "CLICK | TYPE | KEY | WAIT | FINISH",
+  "x": 0,
+  "y": 0,
+  "text": "string to type or key name",
+  "duration": 5,
+  "reason": "Brief explanation of this action"
+}
+</action>
+
+### ACTION RULES
+- Use "type": "WAIT" with "duration": 5 whenever you see a spinner, progress bar, or an active command without a prompt.
+- ONLY use "type": "FINISH" when you can confirm that the final goal requested by the user is 100% complete and working.
+- Also invoke the corresponding tool (bash_exec, file_system, computer_use, finish_task) to execute the action.`);
     }
 
     const systemInstruction = systemPromptParts.join("\n\n");
@@ -637,7 +904,7 @@ CRITICAL INSTRUCTIONS:
 
         if (setting) {
           if (setting.aiBaseUrl) activeAiBaseUrl = setting.aiBaseUrl;
-          if (setting.aiApiKey) activeAiApiKey = setting.aiApiKey;
+          if (setting.aiApiKey) activeAiApiKey = decryptApiKey(setting.aiApiKey);
           if (setting.aiModel) activeAiModel = setting.aiModel;
         }
       } catch (err) {
@@ -652,6 +919,160 @@ CRITICAL INSTRUCTIONS:
       apiKey: activeAiApiKey,
     });
 
+    // Record incoming user message preview in chats table
+    if (chatId && messages && messages.length > 0) {
+      try {
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg && lastMsg.role === "user") {
+          let userText = "";
+          if (typeof lastMsg.content === "string") {
+            userText = lastMsg.content;
+          } else if (Array.isArray(lastMsg.content)) {
+            for (const part of lastMsg.content) {
+              if (
+                part &&
+                part.type === "text" &&
+                typeof part.text === "string"
+              ) {
+                userText = part.text;
+              }
+            }
+          }
+          if (userText) {
+            const clean = formatChatPreview(userText, 160);
+            if (clean) {
+              await db
+                .update(chats)
+                .set({
+                  lastMessagePreview: `You: ${clean}`,
+                  lastMessageAt: new Date(),
+                })
+                .where(eq(chats.id, chatId));
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to record incoming user message in trigger:", err);
+      }
+    }
+
+    const runExecution = async () => {
+      const currentMessages: ModelMessage[] = [...sanitizedMessages];
+      const maxAutoContinues = 4;
+      let loopCount = 0;
+      let finalSummaryText = "";
+
+      while (loopCount <= maxAutoContinues) {
+        if (signal?.aborted) break;
+
+        const prunedMessages = pruneMessageHistory(currentMessages);
+
+        const result = streamText({
+          model: turnAiClient.chat(activeAiModel),
+          system: systemInstruction,
+          messages: prunedMessages,
+          tools,
+          stopWhen: stepCountIs(80),
+          maxOutputTokens: 65536,
+          temperature: 0.1,
+          abortSignal: signal,
+          onFinish: async ({ text }) => {
+            if (text) {
+              finalSummaryText = text;
+            }
+          },
+        });
+
+        const { message, status } = await chat.pipeAndCapture(result, {
+          signal,
+        });
+
+        if (status === "error" || signal?.aborted) {
+          break;
+        }
+
+        // Check if finish_task was called in this turn
+        const didCallFinishTask = message?.parts?.some((p: unknown) => {
+          if (typeof p !== "object" || p === null) return false;
+          const rec = p as Record<string, unknown>;
+          return (
+            (rec.type === "tool-call" || rec.type === "tool-result") &&
+            (rec.toolName === "finish_task" || rec.name === "finish_task")
+          );
+        });
+
+        if (didCallFinishTask) {
+          break;
+        }
+
+        if (loopCount >= maxAutoContinues) {
+          break;
+        }
+
+        // Auto-nudge if finish_task was not called
+        if (message) {
+          const assistantContent: Array<{ type: "text"; text: string }> = [];
+          if (Array.isArray(message.parts)) {
+            for (const part of message.parts as unknown[]) {
+              if (typeof part === "object" && part !== null) {
+                const rec = part as Record<string, unknown>;
+                if (
+                  rec.type === "text" &&
+                  typeof rec.text === "string" &&
+                  rec.text
+                ) {
+                  assistantContent.push({ type: "text", text: rec.text });
+                }
+              }
+            }
+          }
+          if (assistantContent.length === 0) {
+            const rawMsg = message as unknown as Record<string, unknown>;
+            const fallbackText =
+              typeof rawMsg.text === "string" && rawMsg.text
+                ? rawMsg.text
+                : "Memproses langkah...";
+            assistantContent.push({
+              type: "text",
+              text: fallbackText,
+            });
+          }
+
+          currentMessages.push({
+            role: "assistant",
+            content: assistantContent,
+          });
+
+          currentMessages.push({
+            role: "user",
+            content:
+              "SYSTEM NOTIFICATION: Kamu belum memanggil tool 'finish_task'. Jangan berhenti di tengah jalan. Cek layar VNC atau output terminal terakhir, lalu eksekusi tool langkah berikutnya sekarang.",
+          });
+
+          loopCount++;
+        } else {
+          break;
+        }
+      }
+
+      if (chatId && finalSummaryText) {
+        try {
+          const clean = formatChatPreview(finalSummaryText, 160);
+          if (clean) {
+            await db
+              .update(chats)
+              .set({
+                lastMessagePreview: clean,
+                lastMessageAt: new Date(),
+              })
+              .where(eq(chats.id, chatId));
+          }
+        } catch (err) {
+          console.warn("Failed to update chats onFinish in trigger:", err);
+        }
+      }
+    };
+
     return sandboxContextStorage.run(
       {
         chatId: chatId ?? "",
@@ -659,17 +1080,12 @@ CRITICAL INSTRUCTIONS:
         isGroup,
         memberBots: groupMembers,
       },
-      () =>
-        streamText({
-          model: turnAiClient.chat(activeAiModel),
-          system: systemInstruction,
-          messages: sanitizedMessages,
-          tools,
-          stopWhen: stepCountIs(80),
-          maxOutputTokens: 65536,
-          temperature: 0.2,
-          abortSignal: signal,
-        })
+      () => {
+        if (activeBot?.sandboxId) {
+          return withSandboxLock(activeBot.sandboxId, runExecution);
+        }
+        return runExecution();
+      }
     );
   },
 });

@@ -49,27 +49,67 @@ export async function deleteBotSandbox(sandboxId: string): Promise<void> {
 }
 
 /**
- * Ensures Daytona sandbox and VNC processes are active and returns a signed VNC URL.
+ * Helper to ensure a Daytona sandbox is active and running.
+ * If stopped or archived, starts it automatically and ensures computer use is ready.
  */
-export async function getSandboxVncUrl(sandboxId: string): Promise<string> {
+export async function ensureSandboxActive(sandboxId: string) {
   const daytona = getDaytonaClient();
   const sandbox = await daytona.get(sandboxId);
 
-  // If the sandbox is stopped, start it
-  if (sandbox.state === "stopped") {
+  if (sandbox.state === "stopped" || sandbox.state === "archived") {
     await sandbox.start();
   }
 
-  // Ensure computer use / VNC server is started
   try {
     const vncStatus = await sandbox.computerUse.getStatus();
     if (vncStatus.status !== "active") {
       await sandbox.computerUse.start();
     }
   } catch (err) {
-    console.warn(`Attempting to start computer use for sandbox ${sandboxId}:`, err);
-    await sandbox.computerUse.start();
+    console.warn(
+      `Attempting to start computer use for sandbox ${sandboxId}:`,
+      err
+    );
+    try {
+      await sandbox.computerUse.start();
+    } catch {}
   }
+
+  return sandbox;
+}
+
+/**
+ * Sequential lock map to prevent concurrent bot actions on the same sandbox in group chats.
+ */
+const sandboxLocks = new Map<string, Promise<void>>();
+
+export async function withSandboxLock<T>(
+  sandboxId: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  const prev = sandboxLocks.get(sandboxId) || Promise.resolve();
+  let release: () => void;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  sandboxLocks.set(sandboxId, current);
+
+  try {
+    await prev;
+    return await fn();
+  } finally {
+    release!();
+    if (sandboxLocks.get(sandboxId) === current) {
+      sandboxLocks.delete(sandboxId);
+    }
+  }
+}
+
+/**
+ * Ensures Daytona sandbox and VNC processes are active and returns a signed VNC URL.
+ */
+export async function getSandboxVncUrl(sandboxId: string): Promise<string> {
+  const sandbox = await ensureSandboxActive(sandboxId);
 
   // Get signed preview URL for port 6080 (noVNC port), valid for 24 hours (86400 seconds)
   const signed = await sandbox.getSignedPreviewUrl(6080, 86400);

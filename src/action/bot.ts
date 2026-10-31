@@ -2,8 +2,9 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
-import { db, bots } from "@/db";
+import { db, bots, chats, chatMembers } from "@/db";
 import { eq, desc, and } from "drizzle-orm";
+import { formatChatPreview } from "@/lib/clean-text";
 import { createBotSandbox, deleteBotSandbox, getSandboxVncUrl } from "@/lib/daytona";
 
 export interface CreateBotInput {
@@ -69,6 +70,22 @@ export async function createBotAction(
 
     const [inserted] = await db.insert(bots).values(newBot).returning();
 
+    // Create corresponding direct chat in `chats` and membership in `chat_members`
+    await db.insert(chats).values({
+      id: inserted.id,
+      userId,
+      kind: "direct",
+      name: inserted.name,
+      createdAt: inserted.createdAt,
+      lastMessageAt: inserted.createdAt,
+    });
+
+    await db.insert(chatMembers).values({
+      chatId: inserted.id,
+      botId: inserted.id,
+      joinedAt: inserted.createdAt,
+    });
+
     // Revalidate the dashboard page to refetch data immediately
     revalidatePath("/");
 
@@ -86,8 +103,13 @@ export async function createBotAction(
   }
 }
 
+export type UserBotItem = typeof bots.$inferSelect & {
+  lastMessagePreview?: string | null;
+  lastMessageAt?: Date | null;
+};
+
 export async function getUserBotsAction(): Promise<
-  ActionResult<Array<typeof bots.$inferSelect>>
+  ActionResult<Array<UserBotItem>>
 > {
   try {
     const { userId } = await auth();
@@ -105,9 +127,54 @@ export async function getUserBotsAction(): Promise<
       .where(eq(bots.userId, userId))
       .orderBy(desc(bots.createdAt));
 
+    // Ensure all user bots have entries in `chats` and `chat_members`
+    for (const bot of userBots) {
+      await db
+        .insert(chats)
+        .values({
+          id: bot.id,
+          userId,
+          kind: "direct",
+          name: bot.name,
+          createdAt: bot.createdAt,
+          lastMessageAt: bot.createdAt,
+        })
+        .onConflictDoNothing();
+
+      await db
+        .insert(chatMembers)
+        .values({
+          chatId: bot.id,
+          botId: bot.id,
+          joinedAt: bot.createdAt,
+        })
+        .onConflictDoNothing();
+    }
+
+    const userBotsWithChats = await db
+      .select({
+        id: bots.id,
+        userId: bots.userId,
+        name: bots.name,
+        avatar: bots.avatar,
+        job: bots.job,
+        instruction: bots.instruction,
+        sandboxId: bots.sandboxId,
+        createdAt: bots.createdAt,
+        lastMessagePreview: chats.lastMessagePreview,
+        lastMessageAt: chats.lastMessageAt,
+      })
+      .from(bots)
+      .leftJoin(chats, eq(bots.id, chats.id))
+      .where(eq(bots.userId, userId))
+      .orderBy(desc(bots.createdAt));
+
     return {
       success: true,
-      data: userBots,
+      data: userBotsWithChats.map((b) => ({
+        ...b,
+        lastMessagePreview: formatChatPreview(b.lastMessagePreview),
+      })),
     };
   } catch (err: unknown) {
     const message =
@@ -204,6 +271,12 @@ export async function updateBotAction(
       };
     }
 
+    // Keep chats table name in sync
+    await db
+      .update(chats)
+      .set({ name: updated.name })
+      .where(eq(chats.id, updated.id));
+
     // Revalidate paths so cache updates immediately
     revalidatePath("/");
     revalidatePath(`/chat/${id}`);
@@ -254,6 +327,9 @@ export async function deleteBotAction(
     if (deleted.sandboxId) {
       await deleteBotSandbox(deleted.sandboxId);
     }
+
+    // Cascades to chatMembers and cleans up direct chat
+    await db.delete(chats).where(eq(chats.id, botId));
 
     revalidatePath("/");
     revalidatePath(`/chat/${botId}`);

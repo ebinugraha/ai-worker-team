@@ -83,72 +83,85 @@ export function ChatHeader({
       <header
         data-slot="chat-header"
         className={cn(
-          "h-11 w-full border-b border-border bg-background px-4 flex items-center justify-between shrink-0 select-none",
+          "h-16 w-full border-b border-border/60 bg-background/95 backdrop-blur-sm px-4 sm:px-6 flex items-center justify-between shrink-0 select-none",
           className
         )}
         {...props}
       >
-        {/* Left section: Mobile Sidebar Trigger + Avatar + Name (Clickable button to edit) */}
-        <div className="flex items-center gap-1.5 min-w-0">
-          <SidebarTrigger className="md:hidden size-8 -ml-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 cursor-pointer" />
+        {/* Left section: Bot / Group info */}
+        <div className="flex items-center gap-3 min-w-0">
+          <SidebarTrigger className="md:hidden size-9 -ml-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 cursor-pointer" />
+
           {isGroup ? (
             <button
               type="button"
               onClick={() => setOpenEditGroup(true)}
-              className="flex items-center gap-2.5 min-w-0 p-1 md:-ml-1 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group text-left outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              title="Click to edit group chat"
+              className="flex items-center gap-3 min-w-0 p-1.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group text-left outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              title="Klik untuk mengubah grup"
             >
-              <div className="size-5 shrink-0 flex items-center justify-center overflow-hidden rounded-md group-hover:scale-105 transition-transform">
+              <div className="size-9 shrink-0 flex items-center justify-center overflow-hidden rounded-lg group-hover:scale-105 transition-transform">
                 <GroupChatAvatar
                   avatars={currentGroupAvatars}
-                  size={20}
+                  size={36}
                   alt={currentGroupName}
                 />
               </div>
-              <span className="font-medium text-sm text-foreground truncate group-hover:text-foreground">
-                {currentGroupName}
-              </span>
+              <div className="flex flex-col min-w-0">
+                <span className="font-bold text-base sm:text-lg text-foreground truncate group-hover:text-foreground">
+                  {currentGroupName}
+                </span>
+                <span className="text-xs text-muted-foreground hidden sm:inline-block">
+                  {currentGroupMembers.length} bot anggota
+                </span>
+              </div>
             </button>
           ) : (
             <button
               type="button"
               onClick={() => setOpenEdit(true)}
-              className="flex items-center gap-2.5 min-w-0 p-1 md:-ml-1 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group text-left outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              title="Click to edit bot"
+              className="flex items-center gap-3 min-w-0 p-1.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group text-left outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              title="Klik untuk mengubah bot"
             >
-              <div className="size-5 shrink-0 flex items-center justify-center overflow-hidden rounded-md group-hover:scale-105 transition-transform">
-                <SeedAvatar seed={currentAvatar} size={20} alt={currentName} />
+              <div className="size-9 shrink-0 flex items-center justify-center overflow-hidden rounded-lg group-hover:scale-105 transition-transform">
+                <SeedAvatar seed={currentAvatar} size={36} alt={currentName} />
               </div>
-              <span className="font-medium text-sm text-foreground truncate group-hover:text-foreground">
-                {currentName}
-              </span>
+              <div className="flex flex-col min-w-0">
+                <span className="font-bold text-base sm:text-lg text-foreground truncate group-hover:text-foreground">
+                  {currentName}
+                </span>
+                {currentJob && (
+                  <span className="text-xs sm:text-sm text-muted-foreground hidden md:inline-block truncate max-w-[240px]">
+                    {currentJob}
+                  </span>
+                )}
+              </div>
             </button>
           )}
         </div>
 
-        {/* Right section: Monitor VNC Toggle Button (only for single bot direct chat) */}
-        {!isGroup && (
-          <div className="flex items-center gap-1 shrink-0">
+        {/* Right section: Simple Screen Toggle Button */}
+        <div className="flex items-center gap-3 shrink-0">
+          {!isGroup && (
             <Button
               type="button"
               variant={isMonitorOpen ? "secondary" : "outline"}
-              size="sm"
+              size="default"
               onClick={onToggleMonitor}
               className={cn(
-                "h-7 text-xs font-medium rounded-lg cursor-pointer",
+                "h-10 text-sm font-medium px-4 gap-2 rounded-lg cursor-pointer transition-colors",
                 isMonitorOpen
-                  ? "bg-muted text-foreground border-border hover:bg-muted/80"
+                  ? "bg-zinc-800 text-zinc-100 border-zinc-700 hover:bg-zinc-700"
                   : "border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/50"
               )}
-              title={isMonitorOpen ? "Close desktop" : "Show desktop"}
-              aria-label={isMonitorOpen ? "Close desktop" : "Show desktop"}
+              title={isMonitorOpen ? "Tutup layar komputer" : "Buka layar komputer"}
+              aria-label={isMonitorOpen ? "Tutup layar komputer" : "Buka layar komputer"}
               aria-pressed={isMonitorOpen}
             >
-              <MonitorIcon data-icon="inline-start" className="size-3.5" />
-              <span>{isMonitorOpen ? "Close desktop" : "Show desktop"}</span>
+              <MonitorIcon data-icon="inline-start" className="size-4" />
+              <span>{isMonitorOpen ? "Tutup Layar" : "Lihat Layar"}</span>
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </header>
 
       {/* Edit Bot Dialog (only for single bot) */}
@@ -199,16 +212,17 @@ export function ChatHeaderSkeleton() {
     <header
       data-slot="chat-header-skeleton"
       aria-hidden="true"
-      className="h-11 w-full border-b border-border bg-background px-4 flex items-center justify-between shrink-0 select-none"
+      className="h-12 w-full border-b border-border/60 bg-background/95 backdrop-blur-sm px-3 sm:px-4 flex items-center justify-between shrink-0 select-none"
     >
-      <div className="flex items-center gap-1.5 min-w-0">
-        <Skeleton className="md:hidden size-8 -ml-1 rounded-lg" />
-        <div className="flex items-center gap-2.5 min-w-0 md:-ml-1">
-          <Skeleton className="size-5 rounded-md" />
-          <Skeleton className="h-4 w-24 rounded" />
-        </div>
+      <div className="flex items-center gap-2 min-w-0">
+        <Skeleton className="md:hidden size-8 -ml-1 rounded-md" />
+        <Skeleton className="size-5 rounded" />
+        <Skeleton className="h-4 w-28 rounded" />
       </div>
-      <Skeleton className="h-7 w-28 rounded-lg" />
+      <div className="flex items-center gap-2">
+        <Skeleton className="hidden sm:block h-6 w-24 rounded" />
+        <Skeleton className="h-7 w-28 rounded-md" />
+      </div>
     </header>
   );
 }

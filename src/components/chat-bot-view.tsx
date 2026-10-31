@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
 import {
@@ -12,6 +13,8 @@ import {
   mintChatAccessToken,
   startChatSession,
   loadChatTranscript,
+  recordChatActivityAction,
+  stopChatGeneration,
 } from "@/action/chat";
 import {
   MessageScroller,
@@ -55,7 +58,6 @@ import {
   CheckIcon,
   Loader2Icon,
   CheckCircle2Icon,
-  SparklesIcon,
   AlertTriangleIcon,
 } from "lucide-react";
 import {
@@ -103,6 +105,7 @@ function ChatBotContent({
   initialMessages,
   transport,
 }: ChatBotContentProps) {
+  const router = useRouter();
   const [input, setInput] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
@@ -142,19 +145,45 @@ function ChatBotContent({
     transport,
     resume: initialMessages.length > 0,
     onFinish: ({ message }) => {
-      if (!isGroup || !memberBots || memberBots.length === 0) return;
-      for (const part of message.parts) {
-        if (isToolPart(part) && getToolName(part) === "handoff") {
-          const out = part.output as
-            | { success?: boolean; targetBot?: { id?: string } }
-            | undefined;
-          if (out?.success && out.targetBot?.id) {
-            const nextBotId = out.targetBot.id;
-            if (memberBots.some((b) => b.id === nextBotId)) {
-              setSelectedBotId(nextBotId);
+      if (isGroup && memberBots && memberBots.length > 0) {
+        for (const part of message.parts) {
+          if (isToolPart(part) && getToolName(part) === "handoff") {
+            const out = part.output as
+              | { success?: boolean; targetBot?: { id?: string } }
+              | undefined;
+            if (out?.success && out.targetBot?.id) {
+              const nextBotId = out.targetBot.id;
+              if (memberBots.some((b) => b.id === nextBotId)) {
+                setSelectedBotId(nextBotId);
+              }
             }
           }
         }
+      }
+
+      // Record assistant response in Neon database and update sidebar
+      let assistantText = "";
+      if (message && Array.isArray(message.parts)) {
+        for (const part of message.parts) {
+          if (
+            part &&
+            "text" in part &&
+            typeof (part as { text?: unknown }).text === "string"
+          ) {
+            assistantText = (part as { text: string }).text;
+          }
+        }
+      }
+
+      if (assistantText) {
+        recordChatActivityAction({
+          chatId,
+          preview: assistantText,
+        })
+          .then(() => {
+            router.refresh();
+          })
+          .catch(() => {});
       }
     },
   });
@@ -594,6 +623,17 @@ function ChatBotContent({
       }
     );
 
+    // Optimistically update chat activity in Neon database and refresh sidebar
+    const userPreview = trimmed || "Mengirim lampiran";
+    recordChatActivityAction({
+      chatId,
+      preview: `You: ${userPreview}`,
+    })
+      .then(() => {
+        router.refresh();
+      })
+      .catch(() => {});
+
     setInput("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -609,6 +649,9 @@ function ChatBotContent({
       } catch (err) {
         console.warn("useChat stop error:", err);
       }
+      stopChatGeneration(chatId).catch((err) => {
+        console.warn("stopChatGeneration server error:", err);
+      });
       try {
         transport.stopGeneration(chatId);
       } catch (err) {
@@ -643,12 +686,12 @@ function ChatBotContent({
       <ChatDropzoneOverlay isDragging={isDraggingOver} />
       <MessageScrollerProvider autoScroll>
         <MessageScroller className="flex-1 min-h-0 h-0">
-          <MessageScrollerViewport className="p-4 sm:p-6 md:p-8 pt-6">
+          <MessageScrollerViewport className="p-6 sm:p-8 md:p-10 pt-8">
             <MessageScrollerContent className="w-full min-h-full flex flex-col justify-between">
               {displayMessages.length === 0 ? (
                 <div className="flex-1" />
               ) : (
-                <div className="flex flex-col gap-4 flex-1 w-full">
+                <div className="flex flex-col gap-5 flex-1 w-full">
                   {displayMessages.map((message, messageIndex) => {
                     const isUser = message.role === "user";
                     const isLatestMessage = messageIndex === displayMessages.length - 1;
@@ -674,25 +717,24 @@ function ChatBotContent({
                           {isUser ? (
                             <div
                               className={cn(
-                                "w-fit max-w-[85%] sm:max-w-[75%] px-5 py-2.5 text-sm leading-relaxed transition-all shadow-xs",
-                                "bg-neutral-800 text-neutral-100",
-                                "rounded-full sm:rounded-[22px]"
+                                "w-fit max-w-[85%] sm:max-w-[75%] px-5 py-3.5 text-base sm:text-lg leading-relaxed transition-all",
+                                "bg-zinc-900 text-zinc-100 border border-zinc-800 rounded-2xl shadow-none"
                               )}
                             >
                               <div className="whitespace-pre-wrap select-text">
                                 {isGroup && targetBotForUser && (
                                   <Badge
                                     variant="secondary"
-                                    className="inline-flex items-center align-middle mr-2 h-5 px-1.5 py-0 gap-1.5 bg-neutral-900/80 hover:bg-neutral-900 text-neutral-200 border border-neutral-700/60 text-[11px] font-medium rounded-full select-none -translate-y-px"
+                                    className="inline-flex items-center align-middle mr-2 h-6 px-2 py-0 gap-1.5 bg-zinc-950 text-zinc-300 border border-zinc-800 text-xs font-mono rounded select-none -translate-y-px"
                                     title={`Ditujukan ke ${targetBotForUser.name}`}
                                   >
                                     <SeedAvatar
                                       seed={targetBotForUser.avatar}
-                                      size={12}
-                                      className="rounded-full shrink-0"
+                                      size={14}
+                                      className="rounded shrink-0"
                                     />
-                                    <span className="truncate max-w-[120px]">
-                                      {targetBotForUser.name}
+                                    <span className="truncate max-w-[140px]">
+                                      @{targetBotForUser.name}
                                     </span>
                                   </Badge>
                                 )}
@@ -717,27 +759,32 @@ function ChatBotContent({
                               </div>
                             </div>
                           ) : (
-                            <div className="flex items-start gap-2.5 w-full max-w-[92%] sm:max-w-[85%]">
+                            <div className="flex items-start gap-3.5 w-full max-w-[96%] sm:max-w-[90%]">
                               {/* Bot avatar beside message on group chat */}
                               {isGroup && botForMessage && (
                                 <div
-                                  className="size-7 rounded-full overflow-hidden shrink-0 mt-1 border border-border/50 bg-muted/40 flex items-center justify-center select-none"
+                                  className="size-8 rounded-lg overflow-hidden shrink-0 mt-1 border border-border/60 bg-muted/40 flex items-center justify-center select-none"
                                   title={botForMessage.name}
                                 >
                                   <SeedAvatar
                                     seed={botForMessage.avatar}
-                                    size={28}
+                                    size={32}
                                     alt={botForMessage.name}
                                   />
                                 </div>
                               )}
 
-                              <div className="flex flex-col gap-2 flex-1 min-w-0 items-start">
-                                {/* Bot name label above message bubble in group chat */}
+                              <div className="flex flex-col gap-2.5 flex-1 min-w-0 items-start">
+                                {/* Bot name label above message stream in group chat */}
                                 {isGroup && botForMessage && (
-                                  <span className="text-[11px] font-medium text-neutral-400 select-none pl-1">
-                                    {botForMessage.name}
-                                  </span>
+                                  <div className="flex items-center gap-2 text-sm font-semibold text-zinc-200 select-none pl-0.5">
+                                    <span>{botForMessage.name}</span>
+                                    {botForMessage.job && (
+                                      <span className="text-zinc-400 font-normal text-xs sm:text-sm">
+                                        · {botForMessage.job}
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
 
                                 {message.parts.map((part, index) => {
@@ -745,11 +792,7 @@ function ChatBotContent({
                                     return (
                                       <div
                                         key={index}
-                                        className={cn(
-                                          "w-fit max-w-full px-5 py-2.5 text-sm leading-relaxed transition-all shadow-xs",
-                                          "bg-neutral-800 text-neutral-100",
-                                          "rounded-2xl sm:rounded-[22px]"
-                                        )}
+                                        className="w-full text-base sm:text-lg leading-relaxed text-zinc-100 select-text py-1.5"
                                       >
                                         <ChatMarkdown content={part.text} />
                                       </div>
@@ -757,7 +800,7 @@ function ChatBotContent({
                                   }
                                   if (part.type === "reasoning") {
                                     return (
-                                      <Trace key={index} className="my-1.5">
+                                      <Trace key={index} className="my-2">
                                         <TraceCollapsible defaultOpen={true}>
                                           <TraceCollapsibleTrigger>
                                             <TraceLine
@@ -768,23 +811,16 @@ function ChatBotContent({
                                               }
                                             >
                                               <TraceIcon>
-                                                <BrainIcon
-                                                  className={cn(
-                                                    "size-3.5",
-                                                    status === "streaming" &&
-                                                      isLatestMessage &&
-                                                      "animate-pulse text-amber-400"
-                                                  )}
-                                                />
+                                                <BrainIcon className="size-4 text-zinc-400" />
                                               </TraceIcon>
-                                              <TraceTitle className="text-xs font-medium">
+                                              <TraceTitle className="text-sm sm:text-base font-semibold text-zinc-200">
                                                 {status === "streaming" && isLatestMessage
-                                                  ? "Sedang bernalar (Reasoning)..."
-                                                  : "Nalar Selesai (Reasoning)"}
+                                                  ? "Sedang berpikir..."
+                                                  : "Selesai berpikir"}
                                               </TraceTitle>
                                             </TraceLine>
                                           </TraceCollapsibleTrigger>
-                                          <TraceCollapsibleContent className="mt-1 pl-4 text-xs text-neutral-400 whitespace-pre-wrap border-l-2 border-neutral-700/60 ml-2 py-1 leading-relaxed bg-neutral-950/40 rounded-r-lg font-mono">
+                                          <TraceCollapsibleContent className="mt-1.5 pl-4 text-sm text-zinc-300 whitespace-pre-wrap border-l-2 border-zinc-700 ml-2 py-2.5 leading-relaxed bg-zinc-950/60 rounded-r-lg font-mono">
                                             {part.text}
                                           </TraceCollapsibleContent>
                                         </TraceCollapsible>
@@ -793,11 +829,12 @@ function ChatBotContent({
                                   }
                                   if (isToolPart(part)) {
                                     return (
-                                      <ChatToolView
-                                        key={index}
-                                        part={part}
-                                        isStreaming={status === "streaming"}
-                                      />
+                                      <div key={index} className="w-full max-w-full min-w-0">
+                                        <ChatToolView
+                                          part={part}
+                                          isStreaming={status === "streaming"}
+                                        />
+                                      </div>
                                     );
                                   }
                                   return null;
@@ -805,35 +842,33 @@ function ChatBotContent({
 
                                 {/* Live step & activity indicator while streaming */}
                                 {!isUser && isLatestMessage && status === "streaming" && (
-                                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-900/90 border border-neutral-700/70 text-xs text-neutral-300 shadow-sm animate-pulse mt-1 select-none w-fit">
-                                    <SparklesIcon className="size-3.5 text-amber-400 animate-spin" />
-                                    <span className="font-medium text-[11px]">
+                                  <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-200 mt-2 select-none w-fit">
+                                    <Loader2Icon className="size-4 text-zinc-400 animate-spin" />
+                                    <span className="text-xs sm:text-sm text-zinc-300">
                                       {(() => {
                                         const lastPart =
                                           message.parts[message.parts.length - 1];
                                         if (lastPart?.type === "reasoning") {
-                                          return "Sedang bernalar (Reasoning)...";
+                                          return "Sedang berpikir & merencanakan langkah...";
                                         }
                                         if (lastPart && isToolPart(lastPart)) {
                                           const tName = getToolName(lastPart);
-                                          if (tName === "bash")
-                                            return "Menjalankan perintah terminal di sandbox...";
-                                          if (tName === "readFile")
-                                            return "Membaca & menelaah dokumen file...";
+                                          if (tName === "bash" || tName === "bash_exec")
+                                            return "Sedang menjalankan perintah komputer...";
+                                          if (tName === "readFile" || tName === "file_system")
+                                            return "Sedang memeriksa berkas...";
                                           if (tName === "writeFile")
-                                            return "Menulis data ke filesystem sandbox...";
-                                          if (tName === "listFiles")
-                                            return "Memeriksa struktur direktori sandbox...";
-                                          if (tName === "openImage")
-                                            return "Membuka & menampilkan gambar di layar sandbox...";
+                                            return "Sedang menulis berkas...";
+                                          if (tName === "computer_use" || tName === "mouseClick")
+                                            return "Sedang mengoperasikan layar...";
                                           if (
                                             tName === "viewScreen" ||
                                             tName === "showScreen"
                                           )
-                                            return "Mengambil tampilan layar...";
-                                          return `Mengeksekusi tool: ${tName}...`;
+                                            return "Sedang mengambil tampilan layar...";
+                                          return `Sedang menjalankan: ${tName}...`;
                                         }
-                                        return "Sedang merespon...";
+                                        return "Sedang mengetik jawaban...";
                                       })()}
                                     </span>
                                   </div>
@@ -850,10 +885,10 @@ function ChatBotContent({
                                       p.text &&
                                       p.text.trim().length > 0
                                   ) && (
-                                    <div className="w-fit max-w-full px-3.5 py-2 text-xs leading-relaxed rounded-xl bg-neutral-900 border border-emerald-500/30 text-emerald-300 flex items-center gap-2 shadow-xs mt-1">
-                                      <CheckCircle2Icon className="size-3.5 text-emerald-400 shrink-0" />
+                                    <div className="w-fit max-w-full px-4 py-2 text-sm leading-relaxed rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 flex items-center gap-2.5 shadow-xs mt-1.5">
+                                      <CheckCircle2Icon className="size-4 text-zinc-400 shrink-0" />
                                       <span>
-                                        ✅ Tindakan telah selesai dieksekusi di sandbox. Semua instruksi berhasil diproses.
+                                        Tindakan selesai dikerjakan.
                                       </span>
                                     </div>
                                   )}
@@ -869,28 +904,28 @@ function ChatBotContent({
                   {status === "submitted" && (
                     <MessageScrollerItem messageId="thinking">
                       <div className="flex w-full justify-start">
-                        <div className="flex items-start gap-2.5 max-w-[92%] sm:max-w-[85%]">
+                        <div className="flex items-start gap-3 max-w-[92%] sm:max-w-[85%]">
                           {isGroup && selectedBot && (
                             <div
-                              className="size-7 rounded-full overflow-hidden shrink-0 mt-1 border border-border/50 bg-muted/40 flex items-center justify-center select-none"
+                              className="size-8 rounded-full overflow-hidden shrink-0 mt-1 border border-border/50 bg-muted/40 flex items-center justify-center select-none"
                               title={selectedBot.name}
                             >
                               <SeedAvatar
                                 seed={selectedBot.avatar}
-                                size={28}
+                                size={32}
                                 alt={selectedBot.name}
                               />
                             </div>
                           )}
                           <div className="flex flex-col gap-1 items-start">
                             {isGroup && selectedBot && (
-                              <span className="text-[11px] font-medium text-neutral-400 select-none pl-1">
+                              <span className="text-xs font-medium text-zinc-400 select-none pl-1">
                                 {selectedBot.name}
                               </span>
                             )}
-                            <div className="w-fit px-4 py-2 rounded-2xl text-xs bg-neutral-900 border border-neutral-800 text-neutral-300 self-start flex items-center gap-2 shadow-xs animate-pulse">
-                              <Loader2Icon className="size-3.5 animate-spin text-amber-400" />
-                              <span>Memulai analisis & bernalar...</span>
+                            <div className="w-fit px-4 py-2.5 rounded-xl text-sm sm:text-base bg-zinc-900 border border-zinc-800 text-zinc-300 self-start flex items-center gap-2.5 shadow-xs">
+                              <Loader2Icon className="size-4 animate-spin text-zinc-400 shrink-0" />
+                              <span>Sedang memproses...</span>
                             </div>
                           </div>
                         </div>
@@ -924,8 +959,8 @@ function ChatBotContent({
         </MessageScroller>
       </MessageScrollerProvider>
 
-      {/* Input area with AI elements bot-picker dropdown */}
-      <div className="p-4 sm:p-6 w-full shrink-0 z-10">
+      {/* Integrated Command Bar Composer */}
+      <div className="p-4 sm:p-6 md:p-8 pt-2 w-full shrink-0 z-10">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -951,8 +986,8 @@ function ChatBotContent({
             }}
           />
 
-          <div className="w-full rounded-2xl bg-neutral-900 border border-neutral-800/80 p-3 sm:p-4 shadow-sm focus-within:border-neutral-700 transition-all flex flex-col gap-2">
-            {/* Attachment preview thumbnails (ChatGPT/Gemini style) */}
+          <div className="w-full rounded-2xl border border-zinc-800 bg-zinc-900/80 focus-within:border-zinc-600 transition-colors p-4 sm:p-5 flex flex-col gap-3 shadow-md">
+            {/* Attachment preview thumbnails */}
             <ComposerAttachmentStrip
               attachments={attachments}
               onRemove={handleRemoveAttachment}
@@ -967,28 +1002,30 @@ function ChatBotContent({
               onPaste={handlePaste}
               placeholder={
                 isGroup && selectedBot
-                  ? `Message ${selectedBot.name}...`
-                  : "What would you like to know?"
+                  ? `Tulis pesan untuk @${selectedBot.name}...`
+                  : `Tulis pesan untuk ${botName}...`
               }
               aria-label={
                 isGroup && selectedBot
-                  ? `Message ${selectedBot.name}`
-                  : `Message ${botName}`
+                  ? `Pesan untuk ${selectedBot.name}`
+                  : `Pesan untuk ${botName}`
               }
               disabled={isLoading || isUploadingAttachments}
               rows={1}
-              className="w-full resize-none bg-transparent text-sm sm:text-base text-neutral-100 placeholder:text-neutral-500 outline-none border-none focus:outline-none focus:ring-0 min-h-[44px] max-h-36 leading-relaxed"
+              className="w-full resize-none bg-transparent text-base sm:text-lg text-zinc-100 placeholder:text-zinc-500 outline-none border-none focus:outline-none focus:ring-0 min-h-[52px] max-h-44 leading-relaxed font-sans"
             />
-            <div className="flex items-center justify-between pt-1">
-              <div className="flex items-center gap-2">
+
+            {/* Bottom toolbar inside the Command Bar */}
+            <div className="flex items-center justify-between pt-2 border-t border-zinc-800/60 mt-1">
+              <div className="flex items-center gap-2.5">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isLoading || isUploadingAttachments}
-                  className="size-7 rounded-lg text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/80 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
-                  title="Upload ZIP, gambar, atau file lain"
+                  className="size-10 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-40"
+                  title="Lampirkan berkas, ZIP, atau gambar"
                 >
-                  <PlusIcon className="size-4" />
+                  <PlusIcon className="size-5" />
                 </button>
 
                 {/* AI-elements dropdown for picking which bot to talk to in group chat */}
@@ -996,24 +1033,24 @@ function ChatBotContent({
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       type="button"
-                      className="flex items-center gap-1.5 h-7 px-2 rounded-lg bg-neutral-800/90 hover:bg-neutral-800 text-neutral-200 text-xs font-medium border border-neutral-700/60 transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-neutral-500 select-none"
-                      title="Choose bot to talk to"
+                      className="flex items-center gap-2 h-10 px-3.5 rounded-xl bg-zinc-800 hover:bg-zinc-750 text-zinc-200 text-sm font-medium border border-zinc-700/60 transition-colors cursor-pointer outline-none select-none"
+                      title="Pilih bot tujuan"
                     >
                       <SeedAvatar
                         seed={selectedBot.avatar}
-                        size={16}
-                        className="rounded-full shrink-0"
+                        size={20}
+                        className="rounded shrink-0"
                       />
-                      <span className="truncate max-w-[90px] sm:max-w-[130px]">
-                        {selectedBot.name}
+                      <span className="truncate max-w-[120px] sm:max-w-[180px]">
+                        @{selectedBot.name}
                       </span>
-                      <ChevronDownIcon className="size-3 text-neutral-400 shrink-0" />
+                      <ChevronDownIcon className="size-4 text-zinc-400 shrink-0" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       align="start"
                       side="top"
                       sideOffset={6}
-                      className="w-56 p-1 bg-neutral-900 border border-neutral-800 rounded-xl shadow-xl z-50 text-neutral-200"
+                      className="w-64 p-2 bg-zinc-950 border border-zinc-800 rounded-xl shadow-lg z-50 text-zinc-200"
                     >
                       <DropdownMenuGroup>
                         {memberBots.map((bot) => {
@@ -1026,29 +1063,29 @@ function ChatBotContent({
                                 transport.setClientData({ botId: bot.id });
                               }}
                               className={cn(
-                                "flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs cursor-pointer transition-colors select-none",
+                                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm cursor-pointer transition-colors select-none",
                                 isSelected
-                                  ? "bg-neutral-800 text-neutral-100 font-medium"
-                                  : "hover:bg-neutral-800/60 text-neutral-300"
+                                  ? "bg-zinc-800 text-zinc-100 font-semibold"
+                                  : "hover:bg-zinc-800/60 text-zinc-300"
                               )}
                             >
                               <SeedAvatar
                                 seed={bot.avatar}
-                                size={20}
-                                className="rounded-full shrink-0"
+                                size={26}
+                                className="rounded shrink-0"
                               />
                               <div className="flex flex-col min-w-0 flex-1">
-                                <span className="truncate font-medium text-neutral-200">
+                                <span className="truncate font-semibold text-zinc-200 text-sm">
                                   {bot.name}
                                 </span>
                                 {bot.job && (
-                                  <span className="text-[10px] text-muted-foreground truncate">
+                                  <span className="text-xs text-zinc-400 truncate">
                                     {bot.job}
                                   </span>
                                 )}
                               </div>
                               {isSelected && (
-                                <CheckIcon className="size-3.5 text-neutral-200 shrink-0" />
+                                <CheckIcon className="size-4 text-zinc-200 shrink-0" />
                               )}
                             </DropdownMenuItem>
                           );
@@ -1059,41 +1096,47 @@ function ChatBotContent({
                 )}
               </div>
 
-              <button
-                type={isLoading ? "button" : "submit"}
-                disabled={
-                  isLoading
-                    ? false
-                    : (!input.trim() && attachments.length === 0) ||
-                      isUploadingAttachments
-                }
-                onClick={isLoading ? handleStop : undefined}
-                className={cn(
-                  "size-7 rounded-lg flex items-center justify-center transition-colors cursor-pointer",
-                  isLoading
-                    ? "bg-neutral-700 text-neutral-100 hover:bg-neutral-600 shadow-sm"
-                    : isUploadingAttachments
-                    ? "bg-neutral-700 text-neutral-300"
-                    : input.trim() || attachments.length > 0
-                    ? "bg-neutral-700 text-neutral-100 hover:bg-neutral-600 shadow-xs"
-                    : "bg-neutral-800/60 text-neutral-500 cursor-not-allowed"
-                )}
-                title={
-                  isLoading
-                    ? "Hentikan pembuatan pesan (Stop)"
-                    : isUploadingAttachments
-                    ? "Mengunggah lampiran..."
-                    : "Send message (Enter)"
-                }
-              >
+              {/* Action buttons: Stop vs Execute */}
+              <div className="flex items-center gap-2">
                 {isLoading ? (
-                  <SquareIcon className="size-3.5 fill-current" />
-                ) : isUploadingAttachments ? (
-                  <Loader2Icon className="size-3.5 animate-spin" />
+                  <button
+                    type="button"
+                    onClick={handleStop}
+                    className="h-10 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                    title="Hentikan proses"
+                  >
+                    <SquareIcon className="size-3.5 fill-zinc-300 text-zinc-300" />
+                    <span>Hentikan</span>
+                  </button>
                 ) : (
-                  <CornerDownLeftIcon className="size-4" />
+                  <button
+                    type="submit"
+                    disabled={
+                      (!input.trim() && attachments.length === 0) ||
+                      isUploadingAttachments
+                    }
+                    className={cn(
+                      "h-10 px-5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer",
+                      input.trim() || attachments.length > 0
+                        ? "bg-zinc-100 hover:bg-white text-zinc-950 border border-zinc-200 shadow-sm"
+                        : "bg-zinc-800/60 text-zinc-500 cursor-not-allowed border border-transparent"
+                    )}
+                    title="Kirim pesan"
+                  >
+                    {isUploadingAttachments ? (
+                      <>
+                        <Loader2Icon className="size-4 animate-spin" />
+                        <span>Mengunggah...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Kirim</span>
+                        <CornerDownLeftIcon className="size-4" />
+                      </>
+                    )}
+                  </button>
                 )}
-              </button>
+              </div>
             </div>
           </div>
         </form>
