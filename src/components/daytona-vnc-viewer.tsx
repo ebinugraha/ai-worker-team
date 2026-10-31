@@ -10,6 +10,8 @@ import {
   AlertCircleIcon,
   ExternalLinkIcon,
   XIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
 } from "lucide-react";
 import {
   Dialog,
@@ -26,6 +28,8 @@ export interface DaytonaVncViewerProps {
   botName?: string;
   initialVncUrl?: string | null;
   className?: string;
+  isMobileView?: boolean;
+  onClose?: () => void;
 }
 
 export function DaytonaVncViewer({
@@ -33,12 +37,15 @@ export function DaytonaVncViewer({
   botName = "Chatbot",
   initialVncUrl = null,
   className,
+  isMobileView = false,
+  onClose,
 }: DaytonaVncViewerProps) {
   const [vncUrl, setVncUrl] = React.useState<string | null>(initialVncUrl);
   const [isLoading, setIsLoading] = React.useState<boolean>(!initialVncUrl && Boolean(sandboxId));
   const [isReloading, setIsReloading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = React.useState<boolean>(false);
+  const [isMobileMinimized, setIsMobileMinimized] = React.useState<boolean>(false);
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
 
   /**
@@ -289,7 +296,7 @@ export function DaytonaVncViewer({
         )}
 
         {/* Panel Top Bar in inline preview mode (matching src/references/resizable-screen-vnc.png) */}
-        {!isFullscreen && (
+        {!isFullscreen && !isMobileView && (
           <div className="h-11 px-4 flex items-center justify-between shrink-0 select-none">
             <div className="flex items-center gap-2">
               <MonitorIcon className="size-4 text-muted-foreground" />
@@ -327,6 +334,150 @@ export function DaytonaVncViewer({
           </div>
         )}
 
+        {/* Mobile Dock Top Bar & Minimized Bar */}
+        {!isFullscreen && isMobileView && (
+          <>
+            {/* Minimized slim bar */}
+            {isMobileMinimized && (
+              <div className="h-9 px-3 bg-muted/30 border-b border-border flex items-center justify-between select-none">
+                <button
+                  type="button"
+                  onClick={() => setIsMobileMinimized(false)}
+                  className="flex items-center gap-2 min-w-0 hover:opacity-85 transition-opacity cursor-pointer text-left outline-none"
+                  title="Tampilkan layar VNC"
+                >
+                  <MonitorIcon className="size-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-xs font-medium text-foreground truncate">
+                    {botName}&apos;s screen
+                  </span>
+                  {vncUrl && (
+                    <Badge variant="outline" className="text-[10px] h-4 px-1.5 py-0 border-emerald-500/40 text-emerald-400 bg-emerald-500/10 shrink-0">
+                      <span className="size-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse" />
+                      Live
+                    </Badge>
+                  )}
+                  <span className="text-[11px] text-muted-foreground/70 hidden sm:inline">
+                    (diminimalkan)
+                  </span>
+                </button>
+
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => setIsMobileMinimized(false)}
+                    className="size-7 rounded-md text-muted-foreground hover:text-foreground cursor-pointer"
+                    title="Perluas layar"
+                  >
+                    <ChevronDownIcon className="size-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => setIsFullscreen(true)}
+                    className="size-7 rounded-md text-muted-foreground hover:text-foreground cursor-pointer"
+                    title="Layar penuh (Fullscreen)"
+                  >
+                    <Maximize2Icon className="size-3.5" />
+                  </Button>
+                  {onClose && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={onClose}
+                      className="size-7 rounded-md text-muted-foreground hover:text-foreground cursor-pointer"
+                      title="Tutup monitor"
+                    >
+                      <XIcon className="size-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Expanded dock header */}
+            {!isMobileMinimized && (
+              <div className="h-8 px-3 border-b border-border/50 bg-muted/20 flex items-center justify-between shrink-0 select-none">
+                <div className="flex items-center gap-2 min-w-0">
+                  <MonitorIcon className="size-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-xs font-medium text-foreground truncate">
+                    {botName}&apos;s screen
+                  </span>
+                  {vncUrl && (
+                    <Badge variant="outline" className="text-[10px] h-4 px-1.5 py-0 border-emerald-500/40 text-emerald-400 bg-emerald-500/10 shrink-0">
+                      <span className="size-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse" />
+                      Live
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-0.5 shrink-0">
+                  {vncUrl && (
+                    <a
+                      href={vncUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={cn(
+                        buttonVariants({ variant: "ghost", size: "icon-xs" }),
+                        "size-7 rounded-md text-muted-foreground hover:text-foreground cursor-pointer"
+                      )}
+                      title="Buka tab baru"
+                    >
+                      <ExternalLinkIcon className="size-3.5" />
+                    </a>
+                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={handleReload}
+                    disabled={isLoading}
+                    className="size-7 rounded-md text-muted-foreground hover:text-foreground cursor-pointer"
+                    title="Muat ulang layar"
+                  >
+                    <RotateCwIcon className={cn("size-3.5", isReloading && "animate-spin")} />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => setIsFullscreen(true)}
+                    className="size-7 rounded-md text-muted-foreground hover:text-foreground cursor-pointer"
+                    title="Layar penuh (Fullscreen)"
+                  >
+                    <Maximize2Icon className="size-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => setIsMobileMinimized(true)}
+                    className="size-7 rounded-md text-muted-foreground hover:text-foreground cursor-pointer"
+                    title="Minimalkan layar"
+                  >
+                    <ChevronUpIcon className="size-3.5" />
+                  </Button>
+                  {onClose && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={onClose}
+                      className="size-7 rounded-md text-muted-foreground hover:text-foreground cursor-pointer"
+                      title="Tutup monitor"
+                    >
+                      <XIcon className="size-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
         {/* 
           Body / Preview Area:
           In Fullscreen: fills the modal dialog (flex-1) with edge-to-edge interactive VNC.
@@ -336,13 +487,18 @@ export function DaytonaVncViewer({
           className={cn(
             isFullscreen
               ? "relative flex-1 w-full h-full min-h-0 min-w-0 bg-neutral-950 overflow-hidden flex items-center justify-center"
-              : "flex-1 flex flex-col w-full min-h-0 overflow-y-auto px-4 sm:px-6 pt-1 pb-4"
+              : isMobileView
+                ? cn(
+                    "flex flex-col items-center w-full min-h-0 px-2.5 py-2",
+                    isMobileMinimized && "hidden"
+                  )
+                : "flex-1 flex flex-col w-full min-h-0 overflow-y-auto px-4 sm:px-6 pt-1 pb-4"
           )}
         >
           {/* Loading State */}
           {isLoading && (
-            <div className="flex flex-col items-center justify-center gap-3 p-8 text-center text-muted-foreground my-auto">
-              <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
+            <div className="flex flex-col items-center justify-center gap-3 p-6 sm:p-8 text-center text-muted-foreground my-auto">
+              <Loader2Icon className="size-7 sm:size-8 animate-spin text-muted-foreground" />
               <div className="space-y-1">
                 <p className="text-sm font-medium text-foreground">
                   Menghubungkan ke Sandbox Daytona...
@@ -356,8 +512,8 @@ export function DaytonaVncViewer({
 
           {/* Error State */}
           {error && !isLoading && (
-            <div className="flex flex-col items-center justify-center gap-3 p-8 text-center my-auto max-w-sm mx-auto">
-              <AlertCircleIcon className="size-8 text-destructive" />
+            <div className="flex flex-col items-center justify-center gap-3 p-6 sm:p-8 text-center my-auto max-w-sm mx-auto">
+              <AlertCircleIcon className="size-7 sm:size-8 text-destructive" />
               <div className="space-y-1">
                 <p className="text-sm font-medium text-destructive">
                   Koneksi VNC Gagal
@@ -394,7 +550,9 @@ export function DaytonaVncViewer({
                   "relative transition-all select-none",
                   isFullscreen
                     ? "w-full h-full flex-1 min-h-0 min-w-0 bg-neutral-950 p-0 m-0"
-                    : "w-full max-w-xl rounded-xl border border-border/80 bg-[#1b1b1e] p-2.5 sm:p-3 shadow-sm hover:border-neutral-600 cursor-pointer group"
+                    : isMobileView
+                      ? "w-full max-w-md rounded-xl border border-border/80 bg-[#1b1b1e] p-1.5 shadow-sm hover:border-neutral-600 cursor-pointer group"
+                      : "w-full max-w-xl rounded-xl border border-border/80 bg-[#1b1b1e] p-2.5 sm:p-3 shadow-sm hover:border-neutral-600 cursor-pointer group"
                 )}
                 onClick={() => {
                   if (!isFullscreen) setIsFullscreen(true);
@@ -407,7 +565,9 @@ export function DaytonaVncViewer({
                     "relative w-full overflow-hidden bg-neutral-950",
                     isFullscreen
                       ? "h-full flex-1 min-h-0"
-                      : "aspect-[16/10] rounded-lg border border-black/50"
+                      : isMobileView
+                        ? "aspect-[16/10] max-h-[220px] rounded-lg border border-black/50"
+                        : "aspect-[16/10] rounded-lg border border-black/50"
                   )}
                 >
                   {/* Single Persistent Iframe */}
@@ -423,8 +583,8 @@ export function DaytonaVncViewer({
                     tabIndex={isFullscreen ? 0 : -1}
                   />
 
-                  {/* Click-to-Fullscreen Hover Overlay Hint in Preview Mode */}
-                  {!isFullscreen && (
+                  {/* Click-to-Fullscreen Hover Overlay Hint in Desktop Preview Mode */}
+                  {!isFullscreen && !isMobileView && (
                     <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/0 group-hover:bg-black/25 transition-colors">
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-neutral-900/95 text-white text-xs px-3.5 py-1.5 rounded-full flex items-center gap-2 shadow-xl border border-neutral-700/80">
                         <Maximize2Icon className="size-3.5" />
@@ -432,11 +592,19 @@ export function DaytonaVncViewer({
                       </div>
                     </div>
                   )}
+
+                  {/* Mobile Corner Badge Hint */}
+                  {!isFullscreen && isMobileView && (
+                    <div className="absolute bottom-1.5 right-1.5 z-10 bg-black/75 backdrop-blur-xs text-[10px] text-neutral-200 px-2 py-0.5 rounded-md flex items-center gap-1 border border-white/10 pointer-events-none">
+                      <Maximize2Icon className="size-2.5" />
+                      <span>Ketuk Layar Penuh</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Centered Label below screen card in Preview mode */}
-              {!isFullscreen && (
+              {/* Centered Label below screen card in Desktop Preview mode */}
+              {!isFullscreen && !isMobileView && (
                 <>
                   <p className="text-xs text-muted-foreground text-center mt-2.5 font-normal select-none">
                     {`${botName}'s screen`}

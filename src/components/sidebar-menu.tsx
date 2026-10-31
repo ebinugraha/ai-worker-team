@@ -18,6 +18,7 @@ import {
   SidebarMenu as UiSidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -169,6 +170,7 @@ export function SidebarMenu({
 }: SidebarMenuProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { isMobile, setOpenMobile } = useSidebar();
   const [openCreateBot, setOpenCreateBot] = React.useState(false);
   const [openCreateGroupChat, setOpenCreateGroupChat] = React.useState(false);
   const [openCommand, setOpenCommand] = React.useState(false);
@@ -213,6 +215,11 @@ export function SidebarMenu({
             {/* Logo + Genichiro brand title */}
             <Link
               href="/"
+              onClick={() => {
+                if (isMobile) {
+                  setOpenMobile(false);
+                }
+              }}
               className="flex items-center gap-2.5 min-w-0 select-none group-data-[collapsible=icon]:hidden hover:opacity-85 transition-opacity"
             >
               <Image
@@ -231,6 +238,11 @@ export function SidebarMenu({
             {/* Logo in collapsed mode */}
             <Link
               href="/"
+              onClick={() => {
+                if (isMobile) {
+                  setOpenMobile(false);
+                }
+              }}
               className="hidden group-data-[collapsible=icon]:flex items-center justify-center size-9 rounded-xl hover:bg-sidebar-accent transition-colors select-none"
               title="Genichiro Home"
             >
@@ -266,7 +278,12 @@ export function SidebarMenu({
               >
                 <DropdownMenuGroup>
                   <DropdownMenuItem
-                    onClick={() => setOpenCreateBot(true)}
+                    onClick={() => {
+                      if (isMobile) {
+                        setOpenMobile(false);
+                      }
+                      setOpenCreateBot(true);
+                    }}
                     className="flex items-center gap-2.5 px-3 py-2 text-sm font-medium rounded-lg cursor-pointer"
                   >
                     <PlusIcon className="size-4" data-icon="inline-start" />
@@ -275,6 +292,9 @@ export function SidebarMenu({
 
                   <DropdownMenuItem
                     onClick={() => {
+                      if (isMobile) {
+                        setOpenMobile(false);
+                      }
                       if (onCreateGroupChat) {
                         onCreateGroupChat();
                       } else {
@@ -337,6 +357,9 @@ export function SidebarMenu({
                             : `${item.name} • ${item.job}`
                         }
                         onClick={() => {
+                          if (isMobile) {
+                            setOpenMobile(false);
+                          }
                           router.push(chatPath);
                         }}
                         className={cn(
@@ -409,7 +432,12 @@ export function SidebarMenu({
             <Button
               variant="ghost"
               size="icon-xs"
-              onClick={() => router.push("/settings")}
+              onClick={() => {
+                if (isMobile) {
+                  setOpenMobile(false);
+                }
+                router.push("/settings");
+              }}
               className="text-muted-foreground hover:text-foreground shrink-0 group-data-[collapsible=icon]:hidden cursor-pointer"
               title="Pengaturan Model AI"
             >
@@ -442,6 +470,9 @@ export function SidebarMenu({
                     : `${item.name} ${item.job} ${item.instruction || ""}`
                 }
                 onSelect={() => {
+                  if (isMobile) {
+                    setOpenMobile(false);
+                  }
                   router.push(`/chat/${item.id}`);
                   setOpenCommand(false);
                 }}

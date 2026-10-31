@@ -3,6 +3,7 @@
 import * as React from "react";
 import { ChatHeader } from "@/components/chat-header";
 import { DaytonaVncViewer } from "@/components/daytona-vnc-viewer";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -48,6 +49,7 @@ export function ChatResizableLayout({
   initialVncUrl,
   children,
 }: ChatResizableLayoutProps) {
+  const isMobile = useIsMobile();
   const [isMonitorOpen, setIsMonitorOpen] = React.useState(false);
   const [isDragging, setIsDragging] = React.useState(false);
 
@@ -77,6 +79,46 @@ export function ChatResizableLayout({
           job={botJob}
           instruction={botInstruction}
         />
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
+          {children}
+        </div>
+      </div>
+    );
+  }
+
+  // Mobile layout: VNC is docked below the header with compact preview / fullscreen option,
+  // without crushing the chat horizontally or blocking the chat messages and composer.
+  if (isMobile) {
+    return (
+      <div className="flex flex-col h-full min-h-0 min-w-0 w-full overflow-hidden bg-background">
+        <ChatHeader
+          botId={botId}
+          name={botName}
+          avatar={botAvatar}
+          isGroup={isGroup}
+          avatars={avatars}
+          members={members}
+          availableBots={availableBots}
+          job={botJob}
+          instruction={botInstruction}
+          isMonitorOpen={isMonitorOpen}
+          onToggleMonitor={() => setIsMonitorOpen((prev) => !prev)}
+        />
+
+        {/* Mobile VNC Dock */}
+        {isMonitorOpen && (
+          <div className="w-full shrink-0 border-b border-border bg-card/40 backdrop-blur-sm">
+            <DaytonaVncViewer
+              sandboxId={sandboxId}
+              botName={botName}
+              initialVncUrl={initialVncUrl}
+              isMobileView
+              onClose={() => setIsMonitorOpen(false)}
+            />
+          </div>
+        )}
+
+        {/* Chat Content */}
         <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
           {children}
         </div>

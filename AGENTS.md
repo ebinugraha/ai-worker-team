@@ -33,3 +33,9 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - **Resizable Sidebar:**
   - Menggunakan ambang batas histeresis (*deadband*) untuk transisi collapse/expand: collapse hanya jika kursor ditarik `< 100px`, dan expand kembali hanya jika kursor ditarik `> 150px` guna mencegah glitch / flicker buka-tutup berulang.
   - Kursor handle resize menggunakan `col-resize` saat di-hover dan diseret.
+
+<!-- TRIGGER.DEV SKILLS START -->
+## Trigger.dev agent skills
+
+This project has Trigger.dev agent skills installed in `.agents/skills/`. Before writing or changing Trigger.dev code (background tasks, scheduled tasks, realtime, or chat.agent AI agents), load the most relevant skill: `trigger-cost-savings`, `trigger-realtime-and-frontend`, `trigger-authoring-chat-agent`, `trigger-chat-agent-advanced`, `trigger-getting-started`.
+<!-- TRIGGER.DEV SKILLS END -->

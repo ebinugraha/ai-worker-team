@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
   CheckIcon,
   RefreshCwIcon,
@@ -261,6 +262,7 @@ export function SettingsView({ initialSettings, initialModels = [] }: SettingsVi
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-5">
         <div>
           <div className="flex items-center gap-2.5">
+            <SidebarTrigger className="md:hidden size-8 -ml-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 cursor-pointer" />
             <div className="size-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
               <BotIcon className="size-5" />
             </div>
