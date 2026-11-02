@@ -129,19 +129,94 @@
     @apply font-sans text-base;
   }
   
-  /* Precision IDE scrollbars */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  /* Minimalist High-Craft Scrollbars: No tracks, no rails, only floating thumb */
+  @supports (-moz-appearance: none) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: color-mix(in srgb, currentColor 14%, transparent) transparent;
+    }
   }
-  ::-webkit-scrollbar-track {
+
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
     background: transparent;
   }
-  ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.12);
-    border-radius: 3px;
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-track-piece {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
   }
+
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, currentColor 14%, transparent);
+    border-radius: 9999px;
+    border: none !important;
+  }
+
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: color-mix(in srgb, currentColor 28%, transparent);
+  }
+
+  ::-webkit-scrollbar-thumb:active {
+    background: color-mix(in srgb, currentColor 40%, transparent);
+  }
+
+  ::-webkit-scrollbar-button {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent !important;
+  }
+
+  /* Chat Messages Scrollbar: purely floating thumb with zero rail/track container */
+  [data-slot="message-scroller-viewport"] {
+    scrollbar-width: thin;
+  }
+
+  @supports (-moz-appearance: none) {
+    [data-slot="message-scroller-viewport"] {
+      scrollbar-color: color-mix(in srgb, currentColor 16%, transparent) transparent;
+    }
+  }
+
+  [data-slot="message-scroller-viewport"]::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+    background: transparent !important;
+  }
+
+  [data-slot="message-scroller-viewport"]::-webkit-scrollbar-track,
+  [data-slot="message-scroller-viewport"]::-webkit-scrollbar-track-piece {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  [data-slot="message-scroller-viewport"]::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, currentColor 16%, transparent);
+    border-radius: 9999px;
+    border: none !important;
+  }
+
+  [data-slot="message-scroller-viewport"]::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, currentColor 32%, transparent);
+  }
+
+  [data-slot="message-scroller-viewport"]::-webkit-scrollbar-button {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  [data-slot="message-scroller-viewport"][data-autoscrolling="true"]::-webkit-scrollbar-thumb {
+    background: transparent !important;
   }
 }

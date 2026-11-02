@@ -226,33 +226,21 @@ export function DaytonaVncViewer({
       >
         {/* Fullscreen Header (only visible in fullscreen mode) */}
         {isFullscreen && (
-          <div className="h-14 px-4 sm:px-6 border-b border-zinc-800 bg-zinc-950 flex items-center justify-between shrink-0 select-none">
+          <header className="h-16 w-full px-4 sm:px-6 border-b border-border/60 bg-background/95 backdrop-blur-sm flex items-center justify-between shrink-0 select-none">
             <div className="flex items-center gap-3 min-w-0">
-              <MonitorIcon className="size-5 text-zinc-400 shrink-0" />
-              <span className="font-semibold text-base sm:text-lg text-zinc-100 truncate">
-                
+              <MonitorIcon className="size-5 text-muted-foreground shrink-0" />
+              <span className="font-semibold text-base sm:text-lg text-foreground truncate">
+                {`${botName}'s screen`}
               </span>
             </div>
 
             <div className="flex items-center gap-3">
               {vncUrl && (
-                <div className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800">
-                  <span className="text-xs sm:text-sm text-zinc-300 font-medium select-none">
-                    Kendalikan layar
-                  </span>
-                  <Switch
-                    checked={isTakeoverMode}
-                    onCheckedChange={(checked) => setIsTakeoverMode(Boolean(checked))}
-                    aria-label="Kendalikan layar"
-                  />
-                </div>
-              )}
-              {vncUrl && (
                 <a
                   href={vncUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="size-9 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+                  className="size-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
                   title="Buka langsung di tab baru"
                   aria-label="Buka di tab baru"
                 >
@@ -263,7 +251,7 @@ export function DaytonaVncViewer({
                 type="button"
                 onClick={handleReload}
                 disabled={isLoading}
-                className="size-9 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors cursor-pointer"
+                className="size-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
                 title="Muat ulang layar"
                 aria-label="Muat ulang layar"
               >
@@ -272,7 +260,7 @@ export function DaytonaVncViewer({
               <button
                 type="button"
                 onClick={() => setIsFullscreen(false)}
-                className="size-9 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors cursor-pointer"
+                className="size-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
                 title="Keluar dari layar penuh"
               >
                 <Minimize2Icon className="size-4" />
@@ -280,36 +268,39 @@ export function DaytonaVncViewer({
               <button
                 type="button"
                 onClick={() => setIsFullscreen(false)}
-                className="size-9 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors cursor-pointer"
+                className="size-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
                 title="Tutup dialog"
                 aria-label="Tutup"
               >
                 <XIcon className="size-4" />
               </button>
             </div>
-          </div>
+          </header>
         )}
 
         {/* Panel Top Bar in inline preview mode */}
         {!isFullscreen && !isMobileView && (
-          <div className="h-14 px-4 sm:px-6 bg-zinc-950 border-b border-zinc-800 flex items-center justify-between shrink-0 select-none">
+          <header className="h-12 w-full px-4 sm:px-6 bg-background/95 backdrop-blur-sm border-b border-border/60 flex items-center justify-between shrink-0 select-none">
             <div className="flex items-center gap-3 min-w-0">
-              <MonitorIcon className="size-5 text-zinc-400 shrink-0" />
-              <span className="font-semibold text-base sm:text-lg text-zinc-100 truncate">
-                
+              <MonitorIcon className="size-4 text-muted-foreground shrink-0" />
+              <span className="font-semibold text-base sm:text-sm text-foreground truncate">
+                Live Screen Preview
               </span>
             </div>
 
             <div className="flex items-center gap-2.5">
               {vncUrl && (
-                <div className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800">
-                  <span className="text-xs sm:text-sm text-zinc-300 font-medium select-none">
-                    Kendalikan layar
+                <div
+                  className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-accent h-8"
+                  title="Moderate Screen: kontrol mouse & keyboard langsung di layar"
+                >
+                  <span className="text-xs sm:text-sm text-muted-foreground font-medium select-none hidden lg:inline">
+                    Moderate Screen
                   </span>
                   <Switch
                     checked={isTakeoverMode}
                     onCheckedChange={(checked) => setIsTakeoverMode(Boolean(checked))}
-                    aria-label="Kendalikan layar"
+                    aria-label="Moderate Screen"
                   />
                 </div>
               )}
@@ -318,7 +309,7 @@ export function DaytonaVncViewer({
                   href={vncUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="size-9 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+                  className="size-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
                   title="Buka langsung di tab baru"
                   aria-label="Buka di tab baru"
                 >
@@ -329,7 +320,7 @@ export function DaytonaVncViewer({
                 type="button"
                 onClick={handleReload}
                 disabled={isLoading}
-                className="size-9 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors cursor-pointer"
+                className="size-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
                 title="Muat ulang layar"
                 aria-label="Muat ulang layar"
               >
@@ -338,13 +329,13 @@ export function DaytonaVncViewer({
               <button
                 type="button"
                 onClick={() => setIsFullscreen(true)}
-                className="size-9 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors cursor-pointer"
+                className="size-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
                 title="Layar penuh (Fullscreen)"
               >
                 <Maximize2Icon className="size-4" />
               </button>
             </div>
-          </div>
+          </header>
         )}
 
         {/* Mobile Dock Top Bar & Minimized Bar */}
@@ -361,7 +352,7 @@ export function DaytonaVncViewer({
                 >
                   <MonitorIcon className="size-4 text-zinc-400 shrink-0" />
                   <span className="text-sm font-medium text-zinc-200 truncate">
-                    
+                    {`${botName}'s screen`}
                   </span>
                   <span className="text-xs text-zinc-500">
                     (diminimalkan)
@@ -411,7 +402,7 @@ export function DaytonaVncViewer({
                 <div className="flex items-center gap-2.5 min-w-0">
                   <MonitorIcon className="size-4 text-zinc-400 shrink-0" />
                   <span className="text-sm font-semibold text-zinc-200 truncate">
-                    
+                    {`${botName}'s screen`}
                   </span>
                 </div>
 
@@ -424,7 +415,7 @@ export function DaytonaVncViewer({
                       <Switch
                         checked={isTakeoverMode}
                         onCheckedChange={(checked) => setIsTakeoverMode(Boolean(checked))}
-                        aria-label="Kendalikan layar"
+                        aria-label="Moderate Screen"
                       />
                     </div>
                   )}
@@ -483,7 +474,7 @@ export function DaytonaVncViewer({
         {/* 
           Body / Preview Area:
           In Fullscreen: fills the modal dialog (flex-1) with edge-to-edge interactive VNC.
-          In Panel Preview: renders the monitor card + label "{botName}'s screen" + empty bottom space.
+          In Panel Preview: renders the monitor card anchored at top + label "{botName}'s screen" + empty bottom space (matching src/references/resizable-screen-vnc.png).
         */}
         <div
           className={cn(
@@ -494,7 +485,7 @@ export function DaytonaVncViewer({
                     "flex flex-col items-center w-full min-h-0 px-3 py-3",
                     isMobileMinimized && "hidden"
                   )
-                : "flex-1 flex flex-col w-full h-full min-h-0 p-4 sm:p-6 bg-background"
+                : "flex-1 flex flex-col w-full min-h-0 overflow-y-auto px-4 sm:px-6 pt-4 pb-6 bg-background"
           )}
         >
           {/* Simple Friendly Loading State */}
@@ -539,16 +530,20 @@ export function DaytonaVncViewer({
           {vncUrl && !isLoading && (
             <div
               className={cn(
-                "flex flex-col items-center w-full h-full flex-1 min-h-0",
-                isFullscreen ? "h-full flex-1 min-h-0" : ""
+                "flex flex-col items-center w-full transition-all",
+                isFullscreen ? "h-full flex-1 min-h-0 justify-center" : "justify-start"
               )}
             >
               <div
                 className={cn(
-                  "relative transition-all select-none w-full h-full flex-1 min-h-0",
-                  isTakeoverMode
-                    ? "border-2 border-zinc-400 rounded-xl overflow-hidden bg-black shadow-lg"
-                    : "border border-zinc-800 rounded-xl overflow-hidden bg-black"
+                  "relative transition-all select-none",
+                  isFullscreen
+                    ? "w-full h-full flex-1 min-h-0 min-w-0 bg-neutral-950 p-0 m-0"
+                    : isMobileView
+                      ? "w-full max-w-md rounded-xl border border-zinc-800 bg-[#18181b] p-1.5 shadow-sm"
+                      : "w-full max-w-xl rounded-xl border border-zinc-800 bg-[#18181b] p-2 sm:p-2.5 shadow-sm",
+                  !isFullscreen && isTakeoverMode && "border-2 border-zinc-400 shadow-lg",
+                  !isFullscreen && !isTakeoverMode && "hover:border-zinc-700 cursor-pointer group"
                 )}
                 onClick={() => {
                   if (!isFullscreen && !isTakeoverMode) setIsFullscreen(true);
@@ -562,7 +557,16 @@ export function DaytonaVncViewer({
                 }
               >
                 {/* Screen Display Frame */}
-                <div className="relative w-full h-full overflow-hidden bg-black flex-1 min-h-0">
+                <div
+                  className={cn(
+                    "relative w-full overflow-hidden bg-black",
+                    isFullscreen
+                      ? "h-full flex-1 min-h-0"
+                      : isMobileView
+                        ? "aspect-[4/3] max-h-[220px] rounded-lg border border-black/50"
+                        : "aspect-[4/3] rounded-lg border border-black/50"
+                  )}
+                >
                   {/* Single Persistent Iframe */}
                   <iframe
                     ref={iframeRef}
@@ -578,7 +582,7 @@ export function DaytonaVncViewer({
 
                   {/* Click-to-Fullscreen Hover Overlay Hint (only when not in Takeover Mode) */}
                   {!isFullscreen && !isMobileView && !isTakeoverMode && (
-                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/0 hover:bg-black/30 transition-colors cursor-pointer group">
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors cursor-pointer">
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900/90 text-zinc-100 text-sm px-4 py-2 rounded-lg flex items-center gap-2 border border-zinc-700 shadow-lg">
                         <Maximize2Icon className="size-4" />
                         <span>Klik untuk perbesar layar</span>
@@ -595,6 +599,16 @@ export function DaytonaVncViewer({
                   )}
                 </div>
               </div>
+
+              {/* Centered Label below screen card in Preview mode */}
+              {!isFullscreen && !isMobileView && (
+                <>
+                  <p className="text-xs text-muted-foreground text-center mt-2.5 font-normal select-none">
+                    {`${botName}'s screen`}
+                  </p>
+                  <div className="flex-1 w-full" />
+                </>
+              )}
             </div>
           )}
         </div>

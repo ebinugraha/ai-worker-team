@@ -83,7 +83,7 @@ export function ChatHeader({
       <header
         data-slot="chat-header"
         className={cn(
-          "h-16 w-full border-b border-border/60 bg-background/95 backdrop-blur-sm px-4 sm:px-6 flex items-center justify-between shrink-0 select-none",
+          "h-12 w-full border-b border-border/60 bg-background/95 backdrop-blur-sm px-4 sm:px-6 flex items-center justify-between shrink-0 select-none",
           className
         )}
         {...props}
@@ -119,46 +119,38 @@ export function ChatHeader({
             <button
               type="button"
               onClick={() => setOpenEdit(true)}
-              className="flex items-center gap-3 min-w-0 p-1.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group text-left outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="flex items-center gap-2 min-w-0 p-1.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group text-left outline-none focus-visible:ring-1 focus-visible:ring-ring"
               title="Klik untuk mengubah bot"
             >
-              <div className="size-9 shrink-0 flex items-center justify-center overflow-hidden rounded-lg group-hover:scale-105 transition-transform">
+              <div className="size-6 shrink-0 flex items-center justify-center overflow-hidden rounded-lg group-hover:scale-105 transition-transform">
                 <SeedAvatar seed={currentAvatar} size={36} alt={currentName} />
               </div>
-              <div className="flex flex-col min-w-0">
-                <span className="font-bold text-base sm:text-lg text-foreground truncate group-hover:text-foreground">
+                <span className="font-bold text-base sm:text-sm text-foreground truncate group-hover:text-foreground">
                   {currentName}
                 </span>
-                {currentJob && (
-                  <span className="text-xs sm:text-sm text-muted-foreground hidden md:inline-block truncate max-w-[240px]">
-                    {currentJob}
-                  </span>
-                )}
-              </div>
             </button>
           )}
         </div>
 
         {/* Right section: Simple Screen Toggle Button */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-3">
           {!isGroup && (
             <Button
               type="button"
-              variant={isMonitorOpen ? "secondary" : "outline"}
-              size="default"
               onClick={onToggleMonitor}
+              size="sm"
               className={cn(
-                "h-10 text-sm font-medium px-4 gap-2 rounded-lg cursor-pointer transition-colors",
-                isMonitorOpen
-                  ? "bg-zinc-800 text-zinc-100 border-zinc-700 hover:bg-zinc-700"
-                  : "border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                "h-8 text-sm font-medium gap-3 px-4 rounded-lg cursor-pointer transition-colors",
+                !isMonitorOpen
+                  ? "bg-white text-black hover:bg-white/80"
+                  : "text-muted-foreground bg-accent  hover:text-foreground hover:bg-muted/50 border-none"
               )}
               title={isMonitorOpen ? "Tutup layar komputer" : "Buka layar komputer"}
               aria-label={isMonitorOpen ? "Tutup layar komputer" : "Buka layar komputer"}
               aria-pressed={isMonitorOpen}
             >
-              <MonitorIcon data-icon="inline-start" className="size-4" />
-              <span>{isMonitorOpen ? "Tutup Layar" : "Lihat Layar"}</span>
+              <MonitorIcon className="size-4" />
+              <span>{isMonitorOpen ? "Close Screen" : "Show Screen"}</span>
             </Button>
           )}
         </div>
