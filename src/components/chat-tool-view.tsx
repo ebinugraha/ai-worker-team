@@ -102,11 +102,11 @@ function CopyButton({ text }: { text: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="p-1 rounded-md text-neutral-400 hover:text-neutral-100 hover:bg-neutral-800 transition-colors cursor-pointer"
-      title={copied ? "Copied" : "Copy to clipboard"}
+      className="p-1 rounded-md text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors cursor-pointer"
+      title={copied ? "Tersalin" : "Salin ke clipboard"}
     >
       {copied ? (
-        <CheckIcon className="size-3.5 text-emerald-400" />
+        <CheckIcon className="size-3.5 text-zinc-300" />
       ) : (
         <CopyIcon className="size-3.5" />
       )}
@@ -152,23 +152,16 @@ function BashToolView({
               {isRunning ? (
                 <Loader2Icon className="size-4 animate-spin text-zinc-400" />
               ) : hasError ? (
-                <AlertCircleIcon className="size-4 text-destructive" />
+                <AlertCircleIcon className="size-4 text-rose-400" />
               ) : (
-                <TerminalIcon className="size-4 text-neutral-300" />
+                <TerminalIcon className="size-4 text-zinc-400" />
               )}
             </TraceIcon>
-            <TraceTitle className="font-mono text-sm sm:text-base text-zinc-100 font-medium">
+            <TraceTitle className="font-mono text-xs text-zinc-200 font-normal truncate">
               $ {command.length > 55 ? `${command.slice(0, 52)}...` : command}
             </TraceTitle>
-            {output?.exitCode !== undefined && (
-              <TraceDescription
-                className={cn(
-                  "text-xs px-2 py-0.5 rounded-sm font-mono",
-                  output.exitCode === 0
-                    ? "bg-zinc-800 text-zinc-300 border border-zinc-700"
-                    : "bg-destructive/20 text-destructive border border-destructive/40"
-                )}
-              >
+            {output?.exitCode !== undefined && output.exitCode !== 0 && (
+              <TraceDescription className="text-[11px] font-mono text-rose-400">
                 exit {output.exitCode}
               </TraceDescription>
             )}
@@ -176,26 +169,30 @@ function BashToolView({
         </TraceCollapsibleTrigger>
         <TraceCollapsibleContent className="mt-1.5 space-y-2">
           {input?.cwd && (
-            <div className="text-xs sm:text-sm text-neutral-300 font-mono">
-              cwd: <span className="text-neutral-200">{input.cwd}</span>
+            <div className="text-[11px] text-zinc-500 font-mono flex items-center gap-1.5 px-1">
+              <span>cwd:</span>
+              <span className="text-zinc-400 truncate">{input.cwd}</span>
             </div>
           )}
-          <div className="rounded-lg bg-neutral-950 border border-neutral-800/80 p-3 font-mono text-xs sm:text-sm overflow-hidden">
-            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-neutral-800/60 text-xs text-neutral-400">
-              <span className="flex items-center gap-1.5">
-                <TerminalIcon className="size-3 text-neutral-400" />
-                terminal
+          <div className="rounded-xl bg-[#08080a] border border-zinc-800/90 p-3 font-mono text-xs overflow-hidden shadow-inner">
+            <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-zinc-800/60 text-[11px] font-mono text-zinc-500 select-none">
+              <span className="flex items-center gap-1.5 text-zinc-400">
+                <TerminalIcon className="size-3 text-zinc-500" />
+                bash
               </span>
               <CopyButton text={stdout || command} />
             </div>
-            <div className="text-emerald-400 select-all">$ {command}</div>
+            <div className="text-zinc-200 select-all font-mono text-xs">
+              <span className="text-zinc-500 mr-2 select-none">$</span>
+              {command}
+            </div>
             {stdout && (
-              <pre className="mt-2 text-neutral-300 whitespace-pre-wrap select-text max-h-60 overflow-y-auto leading-relaxed">
+              <pre className="mt-2 text-zinc-300 whitespace-pre-wrap select-text max-h-64 overflow-y-auto leading-relaxed scrollbar-thin">
                 {stdout}
               </pre>
             )}
             {output?.error && (
-              <div className="mt-2 text-destructive text-xs select-text">
+              <div className="mt-2 text-rose-400 text-xs select-text border-t border-rose-950/50 pt-1.5">
                 {output.error}
               </div>
             )}
@@ -255,7 +252,7 @@ function ReadFileToolView({
           </TraceLine>
         </TraceCollapsibleTrigger>
         <TraceCollapsibleContent className="mt-1.5">
-          <div className="rounded-lg bg-neutral-950 border border-neutral-800/80 p-2.5 font-mono text-xs overflow-hidden">
+          <div className="rounded-xl bg-[#08080a] border border-zinc-800/90 p-2.5 font-mono text-xs overflow-hidden shadow-inner">
             <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-neutral-800/60 text-[11px] text-neutral-400">
               <span className="truncate">{path}</span>
               {content && <CopyButton text={content} />}
@@ -327,7 +324,7 @@ function WriteFileToolView({
           </TraceLine>
         </TraceCollapsibleTrigger>
         <TraceCollapsibleContent className="mt-1.5">
-          <div className="rounded-lg bg-neutral-950 border border-neutral-800/80 p-2.5 font-mono text-xs overflow-hidden">
+          <div className="rounded-xl bg-[#08080a] border border-zinc-800/90 p-2.5 font-mono text-xs overflow-hidden shadow-inner">
             <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-neutral-800/60 text-[11px] text-neutral-400">
               <span className="truncate">{path}</span>
               {content && <CopyButton text={content} />}
@@ -402,7 +399,7 @@ function ListFilesToolView({
           </TraceLine>
         </TraceCollapsibleTrigger>
         <TraceCollapsibleContent className="mt-1.5">
-          <div className="rounded-lg bg-neutral-950 border border-neutral-800/80 p-2 font-mono text-xs max-h-56 overflow-y-auto">
+          <div className="rounded-xl bg-[#08080a] border border-zinc-800/90 p-2 font-mono text-xs max-h-56 overflow-y-auto shadow-inner">
             {files.length === 0 ? (
               <div className="p-2 text-neutral-500 italic text-[11px]">
                 {isRunning ? "Scanning directory..." : "Directory is empty"}
@@ -717,51 +714,61 @@ function ShowScreenToolView({
   };
 
   return (
-    <div className="my-2 w-full max-w-xl rounded-xl border border-neutral-800 bg-neutral-950 p-3 shadow-md space-y-2">
-      <div className="flex items-center justify-between text-xs text-neutral-300">
-        <div className="flex items-center gap-2 font-medium">
-          <MonitorIcon className="size-4 text-sky-400" />
-          <span>{caption}</span>
-        </div>
+    <div className="my-2.5 w-full max-w-xl space-y-1.5">
+      <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400 px-0.5 select-none">
+        <span className="truncate">{caption}</span>
         {isRunning ? (
-          <span className="flex items-center gap-1.5 text-[11px] text-amber-400 font-mono">
+          <span className="flex items-center gap-1.5 text-zinc-400 font-mono shrink-0">
             <Loader2Icon className="size-3 animate-spin" />
             capturing...
           </span>
         ) : (
-          <span className="text-[10px] text-neutral-500 font-mono">
-            {output?.timestamp ? new Date(output.timestamp).toLocaleTimeString() : "Live"}
-          </span>
+          <div className="flex items-center gap-2 shrink-0">
+            {output?.timestamp && (
+              <span className="text-zinc-500">
+                {new Date(output.timestamp).toLocaleTimeString()}
+              </span>
+            )}
+            {screenshot && (
+              <button
+                type="button"
+                onClick={handleDownload}
+                className="size-5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 flex items-center justify-center transition-colors cursor-pointer"
+                title="Unduh tangkapan layar"
+              >
+                <DownloadIcon className="size-3" />
+              </button>
+            )}
+          </div>
         )}
       </div>
 
       {screenshot ? (
         <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-          <DialogTrigger className="group relative cursor-pointer overflow-hidden rounded-lg border border-neutral-800 bg-black aspect-video flex items-center justify-center w-full">
+          <DialogTrigger className="group relative cursor-zoom-in overflow-hidden rounded-lg border border-zinc-800 bg-black aspect-video flex items-center justify-center w-full hover:border-zinc-700 transition-colors">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`data:image/png;base64,${screenshot}`}
               alt={caption}
-              className="w-full h-full object-contain transition-transform duration-200 group-hover:scale-[1.01]"
+              className="w-full h-full object-contain"
             />
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-xs text-white">
-              <Maximize2Icon className="size-4" />
-              <span>Click to expand</span>
+            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md bg-zinc-950/80 border border-zinc-800 text-zinc-400">
+              <Maximize2Icon className="size-3.5" />
             </div>
           </DialogTrigger>
           <DialogContent
             showCloseButton={false}
-            className="w-[95vw] sm:max-w-[95vw] md:max-w-6xl h-[88vh] max-h-[88vh] p-0 gap-0 bg-neutral-950 border-neutral-800 text-neutral-100 overflow-hidden flex flex-col rounded-2xl shadow-2xl"
+            className="w-[96vw] sm:max-w-[95vw] md:max-w-6xl h-[88vh] max-h-[88vh] p-0 gap-0 bg-zinc-950 border border-zinc-800 text-zinc-100 overflow-hidden flex flex-col rounded-xl shadow-2xl"
           >
             {/* Header with Title and Zoom / Download / Close controls */}
-            <div className="h-12 px-4 border-b border-neutral-800 bg-neutral-900/60 flex items-center justify-between shrink-0 select-none">
+            <div className="h-12 px-4 border-b border-zinc-800 bg-zinc-900/40 flex items-center justify-between shrink-0 select-none">
               <DialogHeader className="p-0 gap-0">
-                <DialogTitle className="text-sm font-medium flex items-center gap-2 text-neutral-200">
-                  <MonitorIcon className="size-4 text-sky-400" />
+                <DialogTitle className="text-xs font-mono text-zinc-300 flex items-center gap-2">
+                  <MonitorIcon className="size-3.5 text-zinc-400" />
                   <span>{caption}</span>
                   {output?.timestamp && (
-                    <span className="text-xs text-neutral-500 font-mono font-normal ml-1 hidden sm:inline-block">
-                      {new Date(output.timestamp).toLocaleTimeString()}
+                    <span className="text-zinc-500 font-normal hidden sm:inline-block">
+                      • {new Date(output.timestamp).toLocaleTimeString()}
                     </span>
                   )}
                 </DialogTitle>
@@ -769,16 +776,16 @@ function ShowScreenToolView({
 
               <div className="flex items-center gap-1.5">
                 {/* Zoom Controls */}
-                <div className="flex items-center gap-1 bg-neutral-900 border border-neutral-800 rounded-lg p-0.5">
+                <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-0.5">
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-xs"
                     onClick={handleZoomOut}
                     disabled={zoom <= 0.5}
-                    className="size-7 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer disabled:opacity-30"
-                    title="Perkecil / Zoom Out (Ctrl + Scroll Down)"
-                    aria-label="Zoom Out"
+                    className="size-7 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 cursor-pointer disabled:opacity-30"
+                    title="Perkecil zoom"
+                    aria-label="Perkecil"
                   >
                     <ZoomOutIcon className="size-3.5" />
                   </Button>
@@ -786,7 +793,7 @@ function ShowScreenToolView({
                   <button
                     type="button"
                     onClick={handleResetZoom}
-                    className="px-2 py-0.5 text-xs font-mono font-medium text-neutral-300 hover:text-white hover:bg-neutral-800 rounded cursor-pointer transition-colors"
+                    className="px-2 py-0.5 text-xs font-mono font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 rounded cursor-pointer transition-colors"
                     title="Klik untuk reset zoom ke 100%"
                   >
                     {Math.round(zoom * 100)}%
@@ -798,9 +805,9 @@ function ShowScreenToolView({
                     size="icon-xs"
                     onClick={handleZoomIn}
                     disabled={zoom >= 3}
-                    className="size-7 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer disabled:opacity-30"
-                    title="Perbesar / Zoom In (Ctrl + Scroll Up)"
-                    aria-label="Zoom In"
+                    className="size-7 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 cursor-pointer disabled:opacity-30"
+                    title="Perbesar zoom"
+                    aria-label="Perbesar"
                   >
                     <ZoomInIcon className="size-3.5" />
                   </Button>
@@ -811,7 +818,7 @@ function ShowScreenToolView({
                       variant="ghost"
                       size="icon-xs"
                       onClick={handleResetZoom}
-                      className="size-7 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer ml-0.5"
+                      className="size-7 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 cursor-pointer ml-0.5"
                       title="Reset Zoom ke 100%"
                       aria-label="Reset Zoom"
                     >
@@ -826,7 +833,7 @@ function ShowScreenToolView({
                   variant="ghost"
                   size="icon-sm"
                   onClick={handleDownload}
-                  className="size-8 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer"
+                  className="size-8 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 cursor-pointer"
                   title="Unduh tangkapan layar"
                   aria-label="Unduh"
                 >
@@ -839,7 +846,7 @@ function ShowScreenToolView({
                   variant="ghost"
                   size="icon-sm"
                   onClick={closeDialog}
-                  className="size-8 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer ml-1"
+                  className="size-8 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 cursor-pointer ml-1"
                   title="Tutup pratinjau"
                   aria-label="Tutup"
                 >
@@ -851,7 +858,7 @@ function ShowScreenToolView({
             {/* Immersive Viewport with Zoom and Scroll Pan */}
             <div
               onWheel={handleWheel}
-              className="flex-1 w-full h-full min-h-0 overflow-auto bg-neutral-950 flex items-center justify-center p-4 relative select-none"
+              className="flex-1 w-full h-full min-h-0 overflow-auto bg-[#050505] flex items-center justify-center p-4 relative select-none"
             >
               <div
                 onDoubleClick={handleDoubleClick}
@@ -870,7 +877,7 @@ function ShowScreenToolView({
                 <img
                   src={`data:image/png;base64,${screenshot}`}
                   alt={caption}
-                  className="max-w-full max-h-[calc(88vh-5.5rem)] object-contain rounded-lg shadow-2xl border border-neutral-800/80 pointer-events-none"
+                  className="max-w-full max-h-[calc(88vh-5.5rem)] object-contain rounded-lg shadow-2xl border border-zinc-800/80 pointer-events-none"
                   draggable={false}
                 />
               </div>
@@ -878,13 +885,13 @@ function ShowScreenToolView({
           </DialogContent>
         </Dialog>
       ) : isRunning ? (
-        <div className="aspect-video w-full rounded-lg bg-neutral-900 border border-neutral-800 animate-pulse flex flex-col items-center justify-center text-xs text-neutral-500 gap-2">
-          <Loader2Icon className="size-5 animate-spin text-neutral-400" />
-          <span>Taking screen capture...</span>
+        <div className="aspect-video w-full rounded-lg bg-zinc-900/40 border border-zinc-800 flex flex-col items-center justify-center text-xs text-zinc-500 gap-2">
+          <Loader2Icon className="size-4 animate-spin text-zinc-500" />
+          <span>Mengambil tangkapan layar...</span>
         </div>
       ) : output?.error ? (
-        <div className="rounded-lg bg-destructive/10 border border-destructive/30 p-3 text-xs text-destructive">
-          Failed to capture screen: {output.error}
+        <div className="rounded-lg bg-rose-950/20 border border-rose-800/40 p-2.5 text-xs text-rose-400 font-mono">
+          error: {output.error}
         </div>
       ) : null}
     </div>
@@ -1062,7 +1069,7 @@ function GenericToolView({
           </TraceLine>
         </TraceCollapsibleTrigger>
         <TraceCollapsibleContent className="mt-1.5">
-          <div className="rounded-lg bg-neutral-950 border border-neutral-800/80 p-2 font-mono text-xs space-y-2">
+          <div className="rounded-xl bg-[#08080a] border border-zinc-800/90 p-3 font-mono text-xs space-y-2 shadow-inner">
             {input !== undefined && (
               <div>
                 <span className="text-neutral-500 text-[10px]">input:</span>
@@ -1138,7 +1145,7 @@ function FileSystemUnifiedToolView({
                 <FileTextIcon className="size-3.5 text-zinc-300" />
               )}
             </TraceIcon>
-            <TraceTitle className="font-mono text-sm sm:text-base text-zinc-100 font-medium">
+            <TraceTitle className="font-mono text-xs sm:text-sm text-zinc-100 font-medium">
               <span className="text-zinc-400 font-semibold mr-1.5">file_system</span>
               <span className="px-2 py-0.5 rounded bg-zinc-800 text-xs text-zinc-200 font-mono mr-1.5">{actionLabel}</span>
               <span className="text-zinc-200">{path}</span>
@@ -1156,7 +1163,7 @@ function FileSystemUnifiedToolView({
           </TraceLine>
         </TraceCollapsibleTrigger>
         <TraceCollapsibleContent className="mt-1.5">
-          <div className="rounded-md bg-[#050505] border border-zinc-800/80 p-3 font-mono text-xs sm:text-sm overflow-hidden">
+          <div className="rounded-xl bg-[#08080a] border border-zinc-800/90 p-3 font-mono text-xs overflow-hidden shadow-inner">
             <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-zinc-800/80 text-xs text-zinc-400">
               <span className="truncate">{path}</span>
               {output?.content && <CopyButton text={output.content} />}
@@ -1254,7 +1261,7 @@ function ComputerUseUnifiedToolView({
                 <MousePointerClickIcon className="size-3.5 text-zinc-300" />
               )}
             </TraceIcon>
-            <TraceTitle className="font-mono text-sm sm:text-base text-zinc-100 font-medium">
+            <TraceTitle className="font-mono text-xs sm:text-sm text-zinc-100 font-medium">
               <span className="text-zinc-400 font-semibold mr-1.5">computer_use</span>
               <span className="px-2 py-0.5 rounded bg-zinc-800 text-xs text-zinc-200 font-mono mr-1.5">{action}</span>
               {x !== undefined && y !== undefined ? (
@@ -1273,29 +1280,29 @@ function ComputerUseUnifiedToolView({
           </TraceLine>
         </TraceCollapsibleTrigger>
         <TraceCollapsibleContent className="mt-1.5">
-          <div className="rounded-md bg-[#050505] border border-zinc-800/80 p-3 font-mono text-xs sm:text-sm space-y-2">
+          <div className="rounded-xl bg-[#08080a] border border-zinc-800/90 p-3 font-mono text-xs space-y-2.5 shadow-inner">
             {output?.note && (
-              <div className="text-xs text-zinc-300">{output.note}</div>
+              <div className="text-xs text-zinc-300 font-sans">{output.note}</div>
             )}
             {output?.error && (
-              <div className="text-rose-400 text-xs sm:text-sm">{output.error}</div>
+              <div className="text-rose-400 text-xs">{output.error}</div>
             )}
             {screenshot && (
               <div className="space-y-1.5 pt-1">
                 <div className="flex items-center justify-between text-[11px] text-zinc-400">
-                  <span>Visual Screen Feedback (0-1000 Grid & Click Marker):</span>
+                  <span className="font-sans">Visual Screen Feedback (0-1000 Grid & Click Marker):</span>
                   <button
                     type="button"
                     onClick={() => setIsZoomOpen(true)}
-                    className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200 cursor-pointer"
+                    className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200 cursor-pointer font-sans"
                   >
                     <Maximize2Icon className="size-3" />
-                    <span>Expand</span>
+                    <span>Perbesar</span>
                   </button>
                 </div>
                 <div
                   onClick={() => setIsZoomOpen(true)}
-                  className="relative cursor-pointer overflow-hidden rounded border border-zinc-800 bg-black aspect-video max-w-sm flex items-center justify-center group"
+                  className="group relative cursor-zoom-in overflow-hidden rounded-lg border border-zinc-800 bg-black aspect-video max-w-sm flex items-center justify-center hover:border-zinc-700 transition-colors"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -1303,25 +1310,24 @@ function ComputerUseUnifiedToolView({
                     alt="VNC Screen Action"
                     className="w-full h-full object-contain"
                   />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-xs text-white">
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded bg-zinc-950/80 border border-zinc-800 text-zinc-400">
                     <Maximize2Icon className="size-3.5" />
-                    <span>Perbesar Layar</span>
                   </div>
                 </div>
 
                 <Dialog open={isZoomOpen} onOpenChange={setIsZoomOpen}>
-                  <DialogContent className="max-w-4xl p-2 bg-[#050505] border border-zinc-800 text-zinc-200">
-                    <DialogHeader className="p-2 border-b border-zinc-800">
-                      <DialogTitle className="text-xs font-mono">
+                  <DialogContent className="max-w-4xl p-0 bg-[#09090b] border border-zinc-800 text-zinc-200 rounded-2xl overflow-hidden shadow-2xl">
+                    <DialogHeader className="p-3.5 border-b border-zinc-800/80 bg-zinc-900/70">
+                      <DialogTitle className="text-xs font-mono text-zinc-200">
                         VNC Screen Capture — {action} {x !== undefined ? `(${x}, ${y})` : ""}
                       </DialogTitle>
                     </DialogHeader>
-                    <div className="p-2 flex items-center justify-center bg-black rounded">
+                    <div className="p-3 flex items-center justify-center bg-black">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={`data:image/png;base64,${screenshot}`}
                         alt="Fullsize VNC Screen"
-                        className="max-h-[75vh] w-auto object-contain"
+                        className="max-h-[75vh] w-auto object-contain rounded-lg border border-zinc-800/60"
                       />
                     </div>
                   </DialogContent>
@@ -1349,23 +1355,18 @@ export function FinishTaskToolView({
     output?.summary || input?.summary || "Seluruh instruksi berhasil diselesaikan.";
 
   return (
-    <div className="w-full max-w-full min-w-0 my-3 rounded-xl bg-zinc-900 border border-zinc-800 p-4 sm:p-5 text-sm text-zinc-200">
-      <div className="flex items-start gap-3.5 min-w-0">
+    <div className="w-full max-w-full min-w-0 my-2 rounded-xl bg-zinc-900/40 border border-zinc-800/80 px-3.5 py-3 text-sm">
+      <div className="flex items-start gap-2.5 min-w-0">
         {isRunning ? (
-          <Loader2Icon className="size-5 animate-spin text-zinc-400 shrink-0 mt-0.5" />
+          <Loader2Icon className="size-4 animate-spin text-zinc-400 shrink-0 mt-0.5" />
         ) : (
-          <CheckCircle2Icon className="size-5 text-zinc-300 shrink-0 mt-0.5" />
+          <CheckCircle2Icon className="size-4 text-zinc-400 shrink-0 mt-0.5" />
         )}
-        <div className="flex-1 min-w-0 space-y-2">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="font-semibold text-zinc-100 text-sm sm:text-base shrink-0">
-              Tugas Selesai
-            </span>
-            <span className="text-xs text-zinc-400">
-              {isRunning ? "sedang menyelesaikan..." : "berhasil"}
-            </span>
-          </div>
-          <div className="text-zinc-200 text-sm sm:text-base font-sans leading-relaxed break-words whitespace-pre-wrap select-text">
+        <div className="flex-1 min-w-0">
+          <span className="text-xs font-medium text-zinc-200 block">
+            {isRunning ? "Menyelesaikan tugas..." : "Tugas selesai"}
+          </span>
+          <div className="text-xs text-zinc-400 font-sans leading-relaxed break-words whitespace-pre-wrap select-text mt-0.5">
             {summary}
           </div>
         </div>

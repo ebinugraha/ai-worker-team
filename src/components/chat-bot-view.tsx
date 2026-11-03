@@ -50,8 +50,8 @@ import { SeedAvatar } from "@/components/seed-avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
-  PlusIcon,
-  CornerDownLeftIcon,
+  PaperclipIcon,
+  ArrowUpIcon,
   SquareIcon,
   BrainIcon,
   ChevronDownIcon,
@@ -59,6 +59,7 @@ import {
   Loader2Icon,
   CheckCircle2Icon,
   AlertTriangleIcon,
+  UsersIcon,
 } from "lucide-react";
 import {
   ComposerAttachmentStrip,
@@ -100,6 +101,8 @@ interface ChatBotContentProps extends ChatBotViewProps {
 function ChatBotContent({
   chatId,
   botName,
+  botAvatar,
+  botJob,
   isGroup = false,
   memberBots = [],
   initialMessages,
@@ -686,12 +689,28 @@ function ChatBotContent({
       <ChatDropzoneOverlay isDragging={isDraggingOver} />
       <MessageScrollerProvider autoScroll>
         <MessageScroller className="flex-1 min-h-0 h-0">
-          <MessageScrollerViewport className="p-6 sm:p-8 md:p-10 pt-8">
-            <MessageScrollerContent className="w-full min-h-full flex flex-col justify-between">
+          <MessageScrollerViewport className="px-4 sm:px-6 py-6 sm:py-8">
+            <MessageScrollerContent className="w-full max-w-3xl mx-auto min-h-full flex flex-col justify-between">
               {displayMessages.length === 0 ? (
-                <div className="flex-1" />
+                <div className="flex-1 flex flex-col items-center justify-center text-center px-4 py-16 select-none my-auto">
+                  <div className="size-13 rounded-2xl bg-zinc-800/60 border border-zinc-700/50 flex items-center justify-center mb-4 text-zinc-300 shadow-sm overflow-hidden">
+                    {isGroup ? (
+                      <UsersIcon className="size-6 text-zinc-300" />
+                    ) : (
+                      <SeedAvatar seed={botAvatar || botName} size={42} className="rounded-xl" />
+                    )}
+                  </div>
+                  <h1 className="text-xl sm:text-2xl font-semibold text-zinc-100 tracking-tight">
+                    {isGroup ? `Grup ${botName}` : `Halo, saya ${botName}`}
+                  </h1>
+                  <p className="text-sm text-zinc-400 mt-2 max-w-md leading-relaxed">
+                    {isGroup
+                      ? "Semua anggota tim siap berkolaborasi menjalankan instruksi dan tugas komputer."
+                      : (botJob || "Asisten AI cerdas siap membantu mengeksekusi tugas, analisis berkas, dan perintah komputer.")}
+                  </p>
+                </div>
               ) : (
-                <div className="flex flex-col gap-5 flex-1 w-full">
+                <div className="flex flex-col gap-6 flex-1 w-full pb-4">
                   {displayMessages.map((message, messageIndex) => {
                     const isUser = message.role === "user";
                     const isLatestMessage = messageIndex === displayMessages.length - 1;
@@ -717,8 +736,8 @@ function ChatBotContent({
                           {isUser ? (
                             <div
                               className={cn(
-                                "w-fit max-w-[85%] sm:max-w-[75%] px-5 py-3.5 text-base sm:text-lg leading-relaxed transition-all",
-                                "bg-zinc-900 text-zinc-100 border border-zinc-800 rounded-2xl shadow-none"
+                                "w-fit max-w-[85%] sm:max-w-[75%] px-4.5 py-2.5 sm:px-5 sm:py-3 text-[15px] sm:text-base leading-relaxed transition-all",
+                                "bg-zinc-800/90 text-zinc-100 border border-zinc-700/50 rounded-[22px] rounded-br-[7px] shadow-xs select-text font-sans"
                               )}
                             >
                               <div className="whitespace-pre-wrap select-text">
@@ -759,28 +778,28 @@ function ChatBotContent({
                               </div>
                             </div>
                           ) : (
-                            <div className="flex items-start gap-3.5 w-full max-w-[96%] sm:max-w-[90%]">
+                            <div className="flex items-start gap-3 w-full">
                               {/* Bot avatar beside message on group chat */}
                               {isGroup && botForMessage && (
                                 <div
-                                  className="size-8 rounded-lg overflow-hidden shrink-0 mt-1 border border-border/60 bg-muted/40 flex items-center justify-center select-none"
+                                  className="size-7 rounded-full overflow-hidden shrink-0 mt-0.5 border border-zinc-700/60 bg-zinc-900 flex items-center justify-center select-none"
                                   title={botForMessage.name}
                                 >
                                   <SeedAvatar
                                     seed={botForMessage.avatar}
-                                    size={32}
+                                    size={28}
                                     alt={botForMessage.name}
                                   />
                                 </div>
                               )}
 
-                              <div className="flex flex-col gap-2.5 flex-1 min-w-0 items-start">
+                              <div className="flex flex-col gap-2 flex-1 min-w-0 items-start">
                                 {/* Bot name label above message stream in group chat */}
                                 {isGroup && botForMessage && (
-                                  <div className="flex items-center gap-2 text-sm font-semibold text-zinc-200 select-none pl-0.5">
-                                    <span>{botForMessage.name}</span>
+                                  <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 select-none pl-0.5">
+                                    <span className="text-zinc-200 font-semibold">{botForMessage.name}</span>
                                     {botForMessage.job && (
-                                      <span className="text-zinc-400 font-normal text-xs sm:text-sm">
+                                      <span className="text-zinc-500 font-normal">
                                         · {botForMessage.job}
                                       </span>
                                     )}
@@ -792,7 +811,7 @@ function ChatBotContent({
                                     return (
                                       <div
                                         key={index}
-                                        className="w-full text-base sm:text-lg leading-relaxed text-zinc-100 select-text py-1.5"
+                                        className="w-full text-[15px] sm:text-base leading-relaxed text-zinc-100 select-text py-0.5"
                                       >
                                         <ChatMarkdown content={part.text} />
                                       </div>
@@ -800,7 +819,7 @@ function ChatBotContent({
                                   }
                                   if (part.type === "reasoning") {
                                     return (
-                                      <Trace key={index} className="my-2">
+                                      <Trace key={index} className="my-1.5">
                                         <TraceCollapsible defaultOpen={true}>
                                           <TraceCollapsibleTrigger>
                                             <TraceLine
@@ -811,16 +830,16 @@ function ChatBotContent({
                                               }
                                             >
                                               <TraceIcon>
-                                                <BrainIcon className="size-4 text-zinc-400" />
+                                                <BrainIcon className="size-3.5 text-zinc-400" />
                                               </TraceIcon>
-                                              <TraceTitle className="text-sm sm:text-base font-semibold text-zinc-200">
+                                              <TraceTitle className="text-xs sm:text-sm font-semibold text-zinc-200">
                                                 {status === "streaming" && isLatestMessage
                                                   ? "Sedang berpikir..."
                                                   : "Selesai berpikir"}
                                               </TraceTitle>
                                             </TraceLine>
                                           </TraceCollapsibleTrigger>
-                                          <TraceCollapsibleContent className="mt-1.5 pl-4 text-sm text-zinc-300 whitespace-pre-wrap border-l-2 border-zinc-700 ml-2 py-2.5 leading-relaxed bg-zinc-950/60 rounded-r-lg font-mono">
+                                          <TraceCollapsibleContent className="mt-1.5 pl-3.5 text-xs text-zinc-300 whitespace-pre-wrap border-l-2 border-zinc-700 ml-1.5 py-2 leading-relaxed bg-zinc-950/60 rounded-r-lg font-mono">
                                             {part.text}
                                           </TraceCollapsibleContent>
                                         </TraceCollapsible>
@@ -842,9 +861,9 @@ function ChatBotContent({
 
                                 {/* Live step & activity indicator while streaming */}
                                 {!isUser && isLatestMessage && status === "streaming" && (
-                                  <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-200 mt-2 select-none w-fit">
-                                    <Loader2Icon className="size-4 text-zinc-400 animate-spin" />
-                                    <span className="text-xs sm:text-sm text-zinc-300">
+                                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-zinc-200 mt-1.5 select-none w-fit">
+                                    <Loader2Icon className="size-3.5 text-zinc-400 animate-spin" />
+                                    <span className="text-xs text-zinc-300">
                                       {(() => {
                                         const lastPart =
                                           message.parts[message.parts.length - 1];
@@ -874,7 +893,7 @@ function ChatBotContent({
                                   </div>
                                 )}
 
-                                {/* Anti-ghosting feedback: if tools were executed but no text response was produced */}
+                                {/* Completed action indicator when only tools were run without extra markdown text */}
                                 {!isUser &&
                                   status !== "streaming" &&
                                   status !== "submitted" &&
@@ -885,8 +904,8 @@ function ChatBotContent({
                                       p.text &&
                                       p.text.trim().length > 0
                                   ) && (
-                                    <div className="w-fit max-w-full px-4 py-2 text-sm leading-relaxed rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 flex items-center gap-2.5 shadow-xs mt-1.5">
-                                      <CheckCircle2Icon className="size-4 text-zinc-400 shrink-0" />
+                                    <div className="w-fit max-w-full px-3.5 py-1.5 text-xs sm:text-sm leading-relaxed rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 flex items-center gap-2 shadow-xs mt-1.5">
+                                      <CheckCircle2Icon className="size-3.5 text-zinc-400 shrink-0" />
                                       <span>
                                         Tindakan selesai dikerjakan.
                                       </span>
@@ -923,8 +942,8 @@ function ChatBotContent({
                                 {selectedBot.name}
                               </span>
                             )}
-                            <div className="w-fit px-4 py-2.5 rounded-xl text-sm sm:text-base bg-zinc-900 border border-zinc-800 text-zinc-300 self-start flex items-center gap-2.5 shadow-xs">
-                              <Loader2Icon className="size-4 animate-spin text-zinc-400 shrink-0" />
+                            <div className="w-fit px-3.5 py-2 rounded-xl text-xs sm:text-sm bg-zinc-900 border border-zinc-800 text-zinc-300 self-start flex items-center gap-2 shadow-xs">
+                              <Loader2Icon className="size-3.5 animate-spin text-zinc-400 shrink-0" />
                               <span>Sedang memproses...</span>
                             </div>
                           </div>
@@ -959,8 +978,8 @@ function ChatBotContent({
         </MessageScroller>
       </MessageScrollerProvider>
 
-      {/* Integrated Command Bar Composer */}
-      <div className="p-4 sm:p-6 md:p-8 pt-2 w-full shrink-0 z-10">
+      {/* Integrated Command Bar Composer (Professional AI Assistant Style) */}
+      <div className="px-4 sm:px-6 pb-4 sm:pb-6 pt-1 w-full shrink-0 z-10 max-w-3xl mx-auto">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -986,14 +1005,19 @@ function ChatBotContent({
             }}
           />
 
-          <div className="w-full rounded-2xl border border-zinc-800 bg-zinc-900/80 focus-within:border-zinc-600 transition-colors p-4 sm:p-5 flex flex-col gap-3 shadow-md">
+          <div className="relative w-full rounded-[26px] border border-zinc-800/90 bg-zinc-900/85 focus-within:border-zinc-700 focus-within:ring-1 focus-within:ring-zinc-700/50 transition-all duration-200 flex flex-col shadow-lg shadow-black/25">
             {/* Attachment preview thumbnails */}
-            <ComposerAttachmentStrip
-              attachments={attachments}
-              onRemove={handleRemoveAttachment}
-              disabled={isLoading || isUploadingAttachments}
-            />
+            {attachments.length > 0 && (
+              <div className="px-4 pt-3 pb-1">
+                <ComposerAttachmentStrip
+                  attachments={attachments}
+                  onRemove={handleRemoveAttachment}
+                  disabled={isLoading || isUploadingAttachments}
+                />
+              </div>
+            )}
 
+            {/* Seamless textarea */}
             <textarea
               ref={textareaRef}
               value={input}
@@ -1012,20 +1036,20 @@ function ChatBotContent({
               }
               disabled={isLoading || isUploadingAttachments}
               rows={1}
-              className="w-full resize-none bg-transparent text-base sm:text-lg text-zinc-100 placeholder:text-zinc-500 outline-none border-none focus:outline-none focus:ring-0 min-h-[52px] max-h-44 leading-relaxed font-sans"
+              className="w-full resize-none bg-transparent px-4.5 pt-3.5 pb-2 sm:px-5 sm:pt-4 text-sm sm:text-base text-zinc-100 placeholder:text-zinc-500 outline-none border-none focus:outline-none focus:ring-0 min-h-[44px] max-h-44 leading-relaxed font-sans"
             />
 
-            {/* Bottom toolbar inside the Command Bar */}
-            <div className="flex items-center justify-between pt-2 border-t border-zinc-800/60 mt-1">
-              <div className="flex items-center gap-2.5">
+            {/* Bottom toolbar inside the capsule */}
+            <div className="flex items-center justify-between px-3 pb-3 sm:px-3.5 sm:pb-3.5 pt-0.5">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isLoading || isUploadingAttachments}
-                  className="size-10 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-40"
-                  title="Lampirkan berkas, ZIP, atau gambar"
+                  className="size-8.5 rounded-full text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-40 select-none"
+                  title="Lampirkan berkas atau gambar"
                 >
-                  <PlusIcon className="size-5" />
+                  <PaperclipIcon className="size-4" />
                 </button>
 
                 {/* AI-elements dropdown for picking which bot to talk to in group chat */}
@@ -1033,24 +1057,24 @@ function ChatBotContent({
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       type="button"
-                      className="flex items-center gap-2 h-10 px-3.5 rounded-xl bg-zinc-800 hover:bg-zinc-750 text-zinc-200 text-sm font-medium border border-zinc-700/60 transition-colors cursor-pointer outline-none select-none"
+                      className="flex items-center gap-1.5 h-7.5 px-2.5 rounded-full bg-zinc-800/80 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 text-xs font-medium border border-zinc-700/60 transition-colors cursor-pointer outline-none select-none"
                       title="Pilih bot tujuan"
                     >
                       <SeedAvatar
                         seed={selectedBot.avatar}
-                        size={20}
-                        className="rounded shrink-0"
+                        size={16}
+                        className="rounded-full shrink-0"
                       />
-                      <span className="truncate max-w-[120px] sm:max-w-[180px]">
+                      <span className="truncate max-w-[120px] sm:max-w-[160px]">
                         @{selectedBot.name}
                       </span>
-                      <ChevronDownIcon className="size-4 text-zinc-400 shrink-0" />
+                      <ChevronDownIcon className="size-3 text-zinc-400 shrink-0" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       align="start"
                       side="top"
-                      sideOffset={6}
-                      className="w-64 p-2 bg-zinc-950 border border-zinc-800 rounded-xl shadow-lg z-50 text-zinc-200"
+                      sideOffset={8}
+                      className="w-64 p-2 bg-zinc-950 border border-zinc-800 rounded-xl shadow-xl z-50 text-zinc-200"
                     >
                       <DropdownMenuGroup>
                         {memberBots.map((bot) => {
@@ -1071,7 +1095,7 @@ function ChatBotContent({
                             >
                               <SeedAvatar
                                 seed={bot.avatar}
-                                size={26}
+                                size={24}
                                 className="rounded shrink-0"
                               />
                               <div className="flex flex-col min-w-0 flex-1">
@@ -1096,49 +1120,56 @@ function ChatBotContent({
                 )}
               </div>
 
-              {/* Action buttons: Stop vs Execute */}
+              {/* Action buttons: Stop vs Circular Send */}
               <div className="flex items-center gap-2">
                 {isLoading ? (
                   <button
                     type="button"
                     onClick={handleStop}
-                    className="h-10 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer"
-                    title="Hentikan proses"
+                    className="size-8.5 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700/80 flex items-center justify-center transition-all cursor-pointer shadow-sm group"
+                    title="Hentikan generasi"
                   >
-                    <SquareIcon className="size-3.5 fill-zinc-300 text-zinc-300" />
-                    <span>Hentikan</span>
+                    <SquareIcon className="size-3.5 fill-zinc-200 text-zinc-200 group-hover:scale-90 transition-transform" />
+                  </button>
+                ) : isUploadingAttachments ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="size-8.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-750 flex items-center justify-center cursor-wait"
+                    title="Mengunggah berkas..."
+                  >
+                    <Loader2Icon className="size-4 animate-spin text-zinc-400" />
                   </button>
                 ) : (
                   <button
                     type="submit"
-                    disabled={
-                      (!input.trim() && attachments.length === 0) ||
-                      isUploadingAttachments
-                    }
+                    disabled={!input.trim() && attachments.length === 0}
                     className={cn(
-                      "h-10 px-5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer",
+                      "size-8.5 rounded-full flex items-center justify-center transition-all cursor-pointer select-none",
                       input.trim() || attachments.length > 0
-                        ? "bg-zinc-100 hover:bg-white text-zinc-950 border border-zinc-200 shadow-sm"
-                        : "bg-zinc-800/60 text-zinc-500 cursor-not-allowed border border-transparent"
+                        ? "bg-zinc-100 hover:bg-white active:scale-95 text-zinc-950 shadow-md shadow-black/20"
+                        : "bg-zinc-800/50 text-zinc-600 border border-zinc-800/60 cursor-not-allowed"
                     )}
                     title="Kirim pesan"
                   >
-                    {isUploadingAttachments ? (
-                      <>
-                        <Loader2Icon className="size-4 animate-spin" />
-                        <span>Mengunggah...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Kirim</span>
-                        <CornerDownLeftIcon className="size-4" />
-                      </>
-                    )}
+                    <ArrowUpIcon
+                      className={cn(
+                        "size-4.5 transition-transform",
+                        input.trim() || attachments.length > 0
+                          ? "stroke-[2.5] text-zinc-950"
+                          : "text-zinc-600"
+                      )}
+                    />
                   </button>
                 )}
               </div>
             </div>
           </div>
+
+          {/* Minimalist AI disclaimer footer */}
+          <p className="text-[11px] text-zinc-500 text-center select-none pt-2 font-normal tracking-tight">
+            AI Worker Team dapat membuat kesalahan. Harap periksa instruksi penting.
+          </p>
         </form>
       </div>
     </div>

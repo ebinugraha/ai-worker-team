@@ -71,7 +71,7 @@ function BubbleContent({
     props: mergeProps<"div">(
       {
         className: cn(
-          "w-fit max-w-full min-w-0 overflow-hidden rounded-2xl border border-transparent px-5 py-3.5 text-base sm:text-lg leading-relaxed wrap-break-word group-data-[align=end]/bubble:self-end [button]:text-left [button,a]:transition-colors [button,a]:outline-none [button,a]:focus-visible:border-ring [button,a]:focus-visible:ring-2 [button,a]:focus-visible:ring-ring/50",
+          "w-fit max-w-full min-w-0 overflow-hidden rounded-2xl border border-transparent px-4 py-2.5 sm:px-4.5 sm:py-3 text-sm leading-relaxed wrap-break-word group-data-[align=end]/bubble:self-end [button]:text-left [button,a]:transition-colors [button,a]:outline-none [button,a]:focus-visible:border-ring [button,a]:focus-visible:ring-2 [button,a]:focus-visible:ring-ring/50",
           className
         ),
       },

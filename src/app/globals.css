@@ -81,6 +81,9 @@
   --sidebar-accent-foreground: #18181b;
   --sidebar-border: rgba(0, 0, 0, 0.08);
   --sidebar-ring: #71717a;
+  --scrollbar-thumb: rgba(0, 0, 0, 0.16);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.3);
+  --scrollbar-thumb-active: rgba(0, 0, 0, 0.45);
 }
 
 .dark {
@@ -116,6 +119,9 @@
   --sidebar-accent-foreground: #fafafa;
   --sidebar-border: rgba(255, 255, 255, 0.07);
   --sidebar-ring: rgba(255, 255, 255, 0.2);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.14);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.28);
+  --scrollbar-thumb-active: rgba(255, 255, 255, 0.42);
 }
 
 @layer base {
@@ -129,11 +135,15 @@
     @apply font-sans text-base;
   }
   
-  /* Minimalist High-Craft Scrollbars: No tracks, no rails, only floating thumb */
+  /* Minimalist High-Craft Floating Scrollbars (Linear / macOS Style) */
   @supports (-moz-appearance: none) {
     * {
       scrollbar-width: thin;
-      scrollbar-color: color-mix(in srgb, currentColor 14%, transparent) transparent;
+      scrollbar-color: var(--scrollbar-thumb) transparent;
+    }
+    [data-slot="message-scroller-viewport"] {
+      scrollbar-width: thin;
+      scrollbar-color: var(--scrollbar-thumb) transparent;
     }
   }
 
@@ -146,23 +156,24 @@
   ::-webkit-scrollbar-track,
   ::-webkit-scrollbar-track-piece {
     background: transparent !important;
-    background-color: transparent !important;
     border: none !important;
     box-shadow: none !important;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, currentColor 14%, transparent);
+    background-color: var(--scrollbar-thumb);
     border-radius: 9999px;
-    border: none !important;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+    transition: background-color 0.15s ease;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: color-mix(in srgb, currentColor 28%, transparent);
+    background-color: var(--scrollbar-thumb-hover);
   }
 
   ::-webkit-scrollbar-thumb:active {
-    background: color-mix(in srgb, currentColor 40%, transparent);
+    background-color: var(--scrollbar-thumb-active);
   }
 
   ::-webkit-scrollbar-button {
@@ -176,16 +187,6 @@
   }
 
   /* Chat Messages Scrollbar: purely floating thumb with zero rail/track container */
-  [data-slot="message-scroller-viewport"] {
-    scrollbar-width: thin;
-  }
-
-  @supports (-moz-appearance: none) {
-    [data-slot="message-scroller-viewport"] {
-      scrollbar-color: color-mix(in srgb, currentColor 16%, transparent) transparent;
-    }
-  }
-
   [data-slot="message-scroller-viewport"]::-webkit-scrollbar {
     width: 4px;
     height: 4px;
@@ -195,19 +196,20 @@
   [data-slot="message-scroller-viewport"]::-webkit-scrollbar-track,
   [data-slot="message-scroller-viewport"]::-webkit-scrollbar-track-piece {
     background: transparent !important;
-    background-color: transparent !important;
     border: none !important;
     box-shadow: none !important;
   }
 
   [data-slot="message-scroller-viewport"]::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, currentColor 16%, transparent);
+    background-color: var(--scrollbar-thumb);
     border-radius: 9999px;
-    border: none !important;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+    transition: background-color 0.15s ease;
   }
 
   [data-slot="message-scroller-viewport"]::-webkit-scrollbar-thumb:hover {
-    background: color-mix(in srgb, currentColor 32%, transparent);
+    background-color: var(--scrollbar-thumb-hover);
   }
 
   [data-slot="message-scroller-viewport"]::-webkit-scrollbar-button {
@@ -217,6 +219,6 @@
   }
 
   [data-slot="message-scroller-viewport"][data-autoscrolling="true"]::-webkit-scrollbar-thumb {
-    background: transparent !important;
+    background-color: transparent !important;
   }
 }
