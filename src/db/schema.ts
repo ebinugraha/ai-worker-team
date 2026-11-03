@@ -6,6 +6,8 @@ import {
   foreignKey,
   primaryKey,
   pgEnum,
+  integer,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -91,6 +93,12 @@ export const userSettings = pgTable("user_settings", {
   aiBaseUrl: text("ai_base_url"),
   aiApiKey: text("ai_api_key"),
   aiModel: text("ai_model"),
+  temperature: text("temperature").default("0.2"),
+  maxTokens: integer("max_tokens").default(8192),
+  maxAutoContinues: integer("max_auto_continues").default(10),
+  autoMemory: boolean("auto_memory").default(true),
+  syntaxTheme: text("syntax_theme").default("dracula-soft"),
+  terminalDensity: text("terminal_density").default("editor"),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .defaultNow()
     .notNull(),

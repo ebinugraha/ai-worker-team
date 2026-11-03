@@ -136,7 +136,7 @@ function SidebarUserButton() {
             "flex flex-row items-center justify-start gap-2.5 w-full text-left group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:justify-center",
           userButtonAvatarBox: "size-8 shrink-0 rounded-full order-1",
           userButtonOuterIdentifier:
-            "text-sm font-medium text-sidebar-foreground text-left truncate max-w-[150px] order-2 group-data-[collapsible=icon]:hidden",
+            "text-xs sm:text-sm font-medium text-sidebar-foreground text-left truncate max-w-[140px] order-2 group-data-[collapsible=icon]:hidden",
         },
       }}
     >
@@ -147,7 +147,7 @@ function SidebarUserButton() {
           labelIcon={<GlobeIcon className="size-4" />}
         />
         <UserButton.Link
-          label="Settings"
+          label="Pengaturan"
           href="/settings"
           labelIcon={<SettingsIcon className="size-4" />}
         />
@@ -222,11 +222,11 @@ export function SidebarMenu({
     <>
       <Sidebar
         collapsible="icon"
-        className="border-r border-sidebar-border"
+        className="border-r border-sidebar-border/50"
         {...props}
       >
         {/* Top Header Section */}
-        <SidebarHeader className="p-4 pb-3 gap-3 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:gap-2">
+        <SidebarHeader className="p-3.5 pb-2.5 gap-2.5 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:gap-2">
           {/* Top Action Row: Logo + 'Genichiro' on the left, '+' button on the right */}
           <div className="flex items-center justify-between group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:gap-2">
             {/* Logo + Genichiro brand title */}
@@ -237,17 +237,17 @@ export function SidebarMenu({
                   setOpenMobile(false);
                 }
               }}
-              className="flex items-center gap-3 min-w-0 select-none group-data-[collapsible=icon]:hidden hover:opacity-85 transition-opacity"
+              className="flex items-center gap-2.5 min-w-0 select-none group-data-[collapsible=icon]:hidden hover:opacity-85 transition-opacity"
             >
               <Image
                 src="/Logo.svg"
                 alt="Genichiro"
-                width={28}
-                height={26}
-                className="h-7 w-auto shrink-0 object-contain"
+                width={22}
+                height={20}
+                className="size-5.5 shrink-0 object-contain"
                 priority
               />
-              <span className="font-bold text-lg sm:text-xl tracking-tight text-foreground truncate">
+              <span className="font-semibold text-sm tracking-tight text-foreground truncate">
                 Genichiro
               </span>
             </Link>
@@ -260,19 +260,20 @@ export function SidebarMenu({
                   setOpenMobile(false);
                 }
               }}
-              className="hidden group-data-[collapsible=icon]:flex items-center justify-center size-10 rounded-xl hover:bg-sidebar-accent transition-colors select-none"
+              className="hidden group-data-[collapsible=icon]:flex items-center justify-center size-9 rounded-lg hover:bg-sidebar-accent/50 transition-colors select-none"
               title="Genichiro Home"
             >
               <Image
                 src="/Logo.svg"
                 alt="Genichiro"
-                width={26}
-                height={24}
-                className="size-7 shrink-0 object-contain"
+                width={22}
+                height={20}
+                className="size-5 shrink-0 object-contain"
                 priority
               />
             </Link>
 
+            {/* Plus Action Button & Popover (dropdown-plus-button-sidebar-photo.png) */}
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
@@ -280,10 +281,10 @@ export function SidebarMenu({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-9 rounded-lg text-muted-foreground hover:text-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:rounded-xl"
+                    className="size-8 rounded-lg bg-sidebar-accent/40 hover:bg-sidebar-accent text-muted-foreground hover:text-foreground transition-colors group-data-[collapsible=icon]:size-9 border border-sidebar-border/40 cursor-pointer"
                   >
-                    <PlusIcon className="size-5" />
-                    <span className="sr-only">Open creation menu</span>
+                    <PlusIcon className="size-4 stroke-[1.75]" />
+                    <span className="sr-only">Tambah percakapan</span>
                   </Button>
                 }
               />
@@ -291,7 +292,7 @@ export function SidebarMenu({
                 align="end"
                 side="bottom"
                 sideOffset={6}
-                className="w-56 p-1.5 rounded-xl bg-popover/95 backdrop-blur-sm border border-border/60 shadow-lg"
+                className="w-52 p-1 rounded-xl bg-popover/98 backdrop-blur-sm border border-border/50 shadow-xl"
               >
                 <DropdownMenuGroup>
                   <DropdownMenuItem
@@ -301,9 +302,9 @@ export function SidebarMenu({
                       }
                       setOpenCreateBot(true);
                     }}
-                    className="flex items-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-lg cursor-pointer"
+                    className="flex items-center gap-2.5 px-2.5 py-2 text-xs sm:text-sm font-normal rounded-lg cursor-pointer hover:bg-accent"
                   >
-                    <PlusIcon className="size-4" data-icon="inline-start" />
+                    <PlusIcon className="size-3.5 text-muted-foreground" data-icon="inline-start" />
                     <span>Create new bot</span>
                   </DropdownMenuItem>
 
@@ -318,43 +319,43 @@ export function SidebarMenu({
                         setOpenCreateGroupChat(true);
                       }
                     }}
-                    className="flex items-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-lg cursor-pointer"
+                    className="flex items-center gap-2.5 px-2.5 py-2 text-xs sm:text-sm font-normal rounded-lg cursor-pointer hover:bg-accent"
                   >
-                    <UsersIcon className="size-4" data-icon="inline-start" />
-                    <span>Create a groupchat</span>
+                    <UsersIcon className="size-3.5 text-muted-foreground" data-icon="inline-start" />
+                    <span>Create group chat</span>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
 
-          {/* Search Trigger Button with ⌘K badge */}
+          {/* Search Trigger Button with ⌘K badge (sidebar-photo.png) */}
           <button
             type="button"
             onClick={() => setOpenCommand(true)}
             title="Search (⌘K)"
             className={cn(
-              "relative flex items-center justify-between w-full h-11 px-3.5 text-sm bg-sidebar-accent/40 hover:bg-sidebar-accent/70 border border-sidebar-border/70 rounded-xl text-muted-foreground hover:text-foreground transition-colors cursor-pointer select-none group focus-visible:ring-1 focus-visible:ring-sidebar-ring outline-none",
-              "group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:rounded-xl group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:hover:bg-sidebar-accent"
+              "relative flex items-center justify-between w-full h-9 px-3 text-xs bg-sidebar-accent/30 hover:bg-sidebar-accent/50 border border-sidebar-border/60 rounded-lg text-muted-foreground hover:text-foreground transition-colors cursor-pointer select-none group focus-visible:ring-1 focus-visible:ring-sidebar-ring outline-none",
+              "group-data-[collapsible=icon]:size-9 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:hover:bg-sidebar-accent/50"
             )}
           >
             <div className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
-              <SearchIcon className="size-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
-              <span className="font-medium text-muted-foreground group-hover:text-foreground transition-colors group-data-[collapsible=icon]:hidden text-sm">
+              <SearchIcon className="size-3.5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+              <span className="font-normal text-muted-foreground group-hover:text-foreground transition-colors group-data-[collapsible=icon]:hidden text-xs">
                 Search
               </span>
             </div>
-            <kbd className="px-2 py-0.5 text-xs font-mono font-medium text-muted-foreground bg-sidebar-accent/80 border border-sidebar-border/70 rounded select-none pointer-events-none group-data-[collapsible=icon]:hidden">
+            <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-medium text-muted-foreground/80 bg-sidebar-accent/70 border border-sidebar-border/60 rounded select-none pointer-events-none group-data-[collapsible=icon]:hidden">
               ⌘K
             </kbd>
           </button>
         </SidebarHeader>
 
-        {/* Main Content Area: Conversations (Bots + Group chats) */}
-        <SidebarContent className="px-3 py-2.5 overflow-y-auto group-data-[collapsible=icon]:px-1.5">
+        {/* Main Content Area: Conversations (Bots + Group chats) (list-bot-sidebar-photo.png) */}
+        <SidebarContent className="px-2.5 py-2 overflow-y-auto group-data-[collapsible=icon]:px-1.5">
           <SidebarGroup className="p-0">
             <SidebarGroupContent>
-              <UiSidebarMenu className="gap-1.5 group-data-[collapsible=icon]:gap-2 group-data-[collapsible=icon]:items-center">
+              <UiSidebarMenu className="gap-1 group-data-[collapsible=icon]:gap-1.5 group-data-[collapsible=icon]:items-center">
                 {conversations.map((item) => {
                   const chatPath = `/chat/${item.id}`;
                   const isActive = pathname === chatPath;
@@ -383,43 +384,43 @@ export function SidebarMenu({
                           router.push(chatPath);
                         }}
                         className={cn(
-                          "relative h-15 px-3.5 py-2.5 rounded-xl gap-3.5 transition-colors cursor-pointer text-left w-full select-none",
+                          "relative h-[52px] px-2.5 py-2 rounded-xl gap-3 transition-colors cursor-pointer text-left w-full select-none",
                           isActive
-                            ? "bg-zinc-800 text-zinc-100 font-medium"
-                            : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40",
-                          "group-data-[collapsible=icon]:size-11 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-xl"
+                            ? "bg-[#242427] dark:bg-zinc-800/80 text-foreground"
+                            : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/40",
+                          "group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-lg"
                         )}
                       >
-                        {/* Avatar: SeedAvatar for direct bot, GroupChatAvatar for group */}
+                        {/* Avatar (SeedAvatar for direct bot, GroupChatAvatar for group) */}
                         <div
                           className={cn(
-                            "size-10 rounded-lg overflow-hidden shrink-0 flex items-center justify-center",
-                            isActive ? "bg-muted/50" : "bg-muted/30"
+                            "size-8.5 rounded-lg overflow-hidden shrink-0 flex items-center justify-center",
+                            isActive ? "bg-muted/50" : "bg-muted/20"
                           )}
                         >
                           {item.isGroup ? (
-                            <GroupChatAvatar avatars={item.avatars} size={40} />
+                            <GroupChatAvatar avatars={item.avatars} size={34} />
                           ) : (
-                            <SeedAvatar seed={item.avatar} size={40} />
+                            <SeedAvatar seed={item.avatar} size={34} />
                           )}
                         </div>
 
                         {/* Details (Name + Relative Time, Subtitle) */}
                         <div className="flex flex-col min-w-0 flex-1 leading-snug group-data-[collapsible=icon]:hidden">
                           <div className="flex items-center justify-between gap-1.5 w-full">
-                            <span className="font-semibold text-base text-zinc-100 truncate">
+                            <span className="font-medium text-[13px] text-foreground truncate">
                               {item.name}
                             </span>
                             {relativeTime && (
                               <span
                                 suppressHydrationWarning
-                                className="text-xs text-zinc-400 shrink-0 font-mono"
+                                className="text-[11px] text-muted-foreground/75 shrink-0 font-normal"
                               >
                                 {relativeTime}
                               </span>
                             )}
                           </div>
-                          <span className="text-sm text-zinc-400 truncate block mt-0.5">
+                          <span className="text-xs text-muted-foreground font-normal truncate mt-0.5 block leading-tight">
                             {previewText
                               ? previewText
                               : item.isGroup
@@ -436,8 +437,8 @@ export function SidebarMenu({
           </SidebarGroup>
         </SidebarContent>
 
-        {/* Footer: User profile with Clerk UserButton */}
-        <SidebarFooter className="border-t border-sidebar-border p-4 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+        {/* Footer: User profile with Clerk UserButton and Settings Button */}
+        <SidebarFooter className="border-t border-sidebar-border/40 p-3 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
           <div className="flex items-center justify-between w-full group-data-[collapsible=icon]:justify-center gap-1">
             <div className="flex-1 min-w-0">
               <React.Suspense
@@ -453,17 +454,17 @@ export function SidebarMenu({
             </div>
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="icon"
               onClick={() => {
                 if (isMobile) {
                   setOpenMobile(false);
                 }
                 router.push("/settings");
               }}
-              className="text-muted-foreground hover:text-foreground shrink-0 group-data-[collapsible=icon]:hidden cursor-pointer"
-              title="Pengaturan Model AI"
+              className="size-7 rounded-lg text-muted-foreground hover:text-foreground shrink-0 group-data-[collapsible=icon]:hidden cursor-pointer"
+              title="Pengaturan"
             >
-              <SettingsIcon className="size-4" />
+              <SettingsIcon className="size-3.5" />
             </Button>
           </div>
         </SidebarFooter>
@@ -476,13 +477,13 @@ export function SidebarMenu({
       <CommandDialog
         open={openCommand}
         onOpenChange={setOpenCommand}
-        title="Search Conversations"
-        description="Search through your bots and group chats"
+        title="Cari Percakapan"
+        description="Cari bot atau obrolan grup"
       >
-        <CommandInput placeholder="Search bots and group chats..." />
+        <CommandInput placeholder="Cari bot dan obrolan grup..." />
         <CommandList>
-          <CommandEmpty>No conversations found.</CommandEmpty>
-          <CommandGroup heading="Conversations">
+          <CommandEmpty>Percakapan tidak ditemukan.</CommandEmpty>
+          <CommandGroup heading="Percakapan">
             {conversations.map((item) => {
               const previewText = formatChatPreview(item.lastMessagePreview);
               return (
@@ -502,7 +503,7 @@ export function SidebarMenu({
                   }}
                   className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer"
                 >
-                  <div className="size-8 rounded-lg overflow-hidden shrink-0 flex items-center justify-center bg-muted/30">
+                  <div className="size-8 rounded-lg overflow-hidden shrink-0 flex items-center justify-center bg-muted/20">
                     {item.isGroup ? (
                       <GroupChatAvatar avatars={item.avatars} size={32} />
                     ) : (
@@ -511,19 +512,19 @@ export function SidebarMenu({
                   </div>
                   <div className="flex flex-col min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-sm text-foreground truncate">
+                      <span className="font-medium text-xs sm:text-sm text-foreground truncate">
                         {item.name}
                       </span>
                       <span
                         suppressHydrationWarning
-                        className="text-[11px] text-muted-foreground shrink-0 font-normal"
+                        className="text-[11px] text-muted-foreground/75 shrink-0 font-normal"
                       >
                         {formatRelativeTime(
                           item.lastMessageAt || item.createdAt
                         )}
                       </span>
                     </div>
-                    <span className="text-xs text-muted-foreground truncate">
+                    <span className="text-xs text-muted-foreground font-normal truncate mt-0.5">
                       {previewText
                         ? previewText
                         : item.isGroup

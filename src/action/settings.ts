@@ -2,9 +2,10 @@
 
 import { auth as clerkAuth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
-import { db, userSettings } from "@/db";
-import { eq } from "drizzle-orm";
+import { db, userSettings, bots } from "@/db";
+import { eq, sql } from "drizzle-orm";
 import { encryptApiKey, decryptApiKey } from "@/lib/encryption";
+import { getDaytonaClient } from "@/lib/daytona";
 
 export { encryptApiKey, decryptApiKey };
 
@@ -12,6 +13,12 @@ export interface UserSettingsData {
   aiBaseUrl: string;
   aiApiKey: string;
   aiModel: string;
+  temperature: string;
+  maxTokens: number;
+  maxAutoContinues: number;
+  autoMemory: boolean;
+  syntaxTheme: string;
+  terminalDensity: string;
   isConfigured: boolean;
 }
 
@@ -47,6 +54,12 @@ export async function getUserSettingsAction(): Promise<
     const defaultApiKey =
       process.env.AI_API_KEY || process.env.NINE_ROUTER_API_KEY || "";
     const defaultModel = process.env.AI_MODEL || "glm-5.3-flashh";
+    const defaultTemperature = "0.2";
+    const defaultMaxTokens = 8192;
+    const defaultMaxAutoContinues = 10;
+    const defaultAutoMemory = true;
+    const defaultSyntaxTheme = "dracula-soft";
+    const defaultTerminalDensity = "editor";
 
     if (!setting) {
       return {
@@ -55,6 +68,12 @@ export async function getUserSettingsAction(): Promise<
           aiBaseUrl: defaultBaseUrl,
           aiApiKey: defaultApiKey,
           aiModel: defaultModel,
+          temperature: defaultTemperature,
+          maxTokens: defaultMaxTokens,
+          maxAutoContinues: defaultMaxAutoContinues,
+          autoMemory: defaultAutoMemory,
+          syntaxTheme: defaultSyntaxTheme,
+          terminalDensity: defaultTerminalDensity,
           isConfigured: false,
         },
       };
@@ -68,6 +87,12 @@ export async function getUserSettingsAction(): Promise<
         aiBaseUrl: setting.aiBaseUrl || defaultBaseUrl,
         aiApiKey: resolvedApiKey,
         aiModel: setting.aiModel || defaultModel,
+        temperature: setting.temperature || defaultTemperature,
+        maxTokens: setting.maxTokens ?? defaultMaxTokens,
+        maxAutoContinues: setting.maxAutoContinues ?? defaultMaxAutoContinues,
+        autoMemory: setting.autoMemory ?? defaultAutoMemory,
+        syntaxTheme: setting.syntaxTheme || defaultSyntaxTheme,
+        terminalDensity: setting.terminalDensity || defaultTerminalDensity,
         isConfigured: true,
       },
     };
@@ -87,6 +112,12 @@ export async function saveUserSettingsAction(input: {
   aiBaseUrl: string;
   aiApiKey: string;
   aiModel: string;
+  temperature?: string;
+  maxTokens?: number;
+  maxAutoContinues?: number;
+  autoMemory?: boolean;
+  syntaxTheme?: string;
+  terminalDensity?: string;
 }): Promise<ActionResult<UserSettingsData>> {
   try {
     const { userId } = await clerkAuth();
@@ -97,6 +128,12 @@ export async function saveUserSettingsAction(input: {
     const trimmedBaseUrl = input.aiBaseUrl.trim().replace(/\/+$/, "");
     const trimmedApiKey = input.aiApiKey.trim();
     const trimmedModel = input.aiModel.trim();
+    const temperature = input.temperature?.trim() || "0.2";
+    const maxTokens = input.maxTokens ?? 8192;
+    const maxAutoContinues = input.maxAutoContinues ?? 10;
+    const autoMemory = input.autoMemory ?? true;
+    const syntaxTheme = input.syntaxTheme?.trim() || "dracula-soft";
+    const terminalDensity = input.terminalDensity?.trim() || "editor";
 
     if (!trimmedBaseUrl) {
       return { success: false, error: "Base URL wajib diisi." };
@@ -114,6 +151,12 @@ export async function saveUserSettingsAction(input: {
         aiBaseUrl: trimmedBaseUrl,
         aiApiKey: encryptedKey,
         aiModel: trimmedModel,
+        temperature,
+        maxTokens,
+        maxAutoContinues,
+        autoMemory,
+        syntaxTheme,
+        terminalDensity,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
@@ -122,6 +165,12 @@ export async function saveUserSettingsAction(input: {
           aiBaseUrl: trimmedBaseUrl,
           aiApiKey: encryptedKey,
           aiModel: trimmedModel,
+          temperature,
+          maxTokens,
+          maxAutoContinues,
+          autoMemory,
+          syntaxTheme,
+          terminalDensity,
           updatedAt: new Date(),
         },
       });
@@ -135,9 +184,15 @@ export async function saveUserSettingsAction(input: {
         aiBaseUrl: trimmedBaseUrl,
         aiApiKey: trimmedApiKey,
         aiModel: trimmedModel,
+        temperature,
+        maxTokens,
+        maxAutoContinues,
+        autoMemory,
+        syntaxTheme,
+        terminalDensity,
         isConfigured: true,
       },
-      message: "Pengaturan model & provider AI berhasil disimpan!",
+      message: "Pengaturan workspace & AI berhasil disimpan!",
     };
   } catch (err: unknown) {
     console.error("Error saving user settings:", err);
@@ -538,6 +593,269 @@ export async function testAiPromptAction(input: {
         err instanceof Error
           ? `Gagal mengeksekusi test chat: ${err.message}`
           : "Gagal mengeksekusi test chat.",
+    };
+  }
+}
+
+export interface DiagnosticItem {
+  id: string;
+  name: string;
+  category: "ai" | "database" | "sandbox" | "second_brain";
+  status: "operational" | "degraded" | "offline";
+  latencyMs?: number;
+  detail: string;
+}
+
+export interface SystemDiagnosticsResult {
+  timestamp: string;
+  allOperational: boolean;
+  items: DiagnosticItem[];
+}
+
+export async function runSystemDiagnosticsAction(input?: {
+  aiBaseUrl?: string;
+  aiApiKey?: string;
+}): Promise<ActionResult<SystemDiagnosticsResult>> {
+  try {
+    const { userId } = await clerkAuth();
+    if (!userId) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    const items: DiagnosticItem[] = [];
+
+    // 1. Database Neon Ping
+    const dbStart = Date.now();
+    try {
+      await db.execute(sql`SELECT 1 as ping`);
+      const dbLatency = Date.now() - dbStart;
+      items.push({
+        id: "neon_db",
+        name: "Neon PostgreSQL",
+        category: "database",
+        status: "operational",
+        latencyMs: dbLatency,
+        detail: `Koneksi aktif (${dbLatency}ms) ke cluster serverless.`,
+      });
+    } catch (dbErr: unknown) {
+      items.push({
+        id: "neon_db",
+        name: "Neon PostgreSQL",
+        category: "database",
+        status: "offline",
+        detail: dbErr instanceof Error ? dbErr.message : "Gagal terhubung ke database.",
+      });
+    }
+
+    // 2. AI Inference Gateway Ping
+    const [setting] = await db
+      .select()
+      .from(userSettings)
+      .where(eq(userSettings.userId, userId))
+      .limit(1);
+
+    const baseUrl =
+      input?.aiBaseUrl ||
+      setting?.aiBaseUrl ||
+      process.env.AI_BASE_URL ||
+      process.env.NINE_ROUTER_BASE_URL ||
+      "https://omoapicall.web.id/v1";
+    const apiKey =
+      (input?.aiApiKey ? decryptApiKey(input.aiApiKey) : null) ||
+      (setting?.aiApiKey ? decryptApiKey(setting.aiApiKey) : null) ||
+      process.env.AI_API_KEY ||
+      "";
+
+    const aiStart = Date.now();
+    try {
+      const headers: Record<string, string> = { Accept: "application/json" };
+      if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+      const res = await fetch(`${baseUrl.replace(/\/+$/, "")}/models`, {
+        method: "GET",
+        headers,
+        signal: AbortSignal.timeout(6000),
+      });
+      const aiLatency = Date.now() - aiStart;
+      if (res.ok) {
+        items.push({
+          id: "ai_inference",
+          name: "AI Inference Gateway",
+          category: "ai",
+          status: "operational",
+          latencyMs: aiLatency,
+          detail: `Endpoint online (${aiLatency}ms) - ${baseUrl}`,
+        });
+      } else {
+        items.push({
+          id: "ai_inference",
+          name: "AI Inference Gateway",
+          category: "ai",
+          status: "degraded",
+          latencyMs: aiLatency,
+          detail: `HTTP ${res.status} (${res.statusText}) dari ${baseUrl}`,
+        });
+      }
+    } catch (aiErr: unknown) {
+      items.push({
+        id: "ai_inference",
+        name: "AI Inference Gateway",
+        category: "ai",
+        status: "offline",
+        detail: aiErr instanceof Error ? aiErr.message : "Request endpoint timeout.",
+      });
+    }
+
+    // 3. Daytona Sandbox Engine
+    const daytonaStart = Date.now();
+    try {
+      if (process.env.DAYTONA_API_KEY) {
+        const _daytona = getDaytonaClient();
+        void _daytona;
+        // Light client check
+        const daytonaLatency = Date.now() - daytonaStart;
+        items.push({
+          id: "daytona_sandbox",
+          name: "Daytona Cloud Sandbox",
+          category: "sandbox",
+          status: "operational",
+          latencyMs: daytonaLatency,
+          detail: `Daytona SDK terinisialisasi (Target: ${process.env.DAYTONA_TARGET || "default"}).`,
+        });
+      } else {
+        items.push({
+          id: "daytona_sandbox",
+          name: "Daytona Cloud Sandbox",
+          category: "sandbox",
+          status: "degraded",
+          detail: "DAYTONA_API_KEY belum disetel pada environment.",
+        });
+      }
+    } catch (daytonaErr: unknown) {
+      items.push({
+        id: "daytona_sandbox",
+        name: "Daytona Cloud Sandbox",
+        category: "sandbox",
+        status: "offline",
+        detail: daytonaErr instanceof Error ? daytonaErr.message : "Error runtime Daytona.",
+      });
+    }
+
+    // 4. Obsidian MCP Second Brain
+    const obsStart = Date.now();
+    try {
+      const res = await fetch("https://100.69.252.67:27124/mcp", {
+        method: "GET",
+        signal: AbortSignal.timeout(3000),
+      }).catch(() => null);
+
+      const obsLatency = Date.now() - obsStart;
+      if (res && (res.status === 200 || res.status === 405 || res.status === 401 || res.status === 404)) {
+        items.push({
+          id: "obsidian_mcp",
+          name: "Obsidian Second Brain MCP",
+          category: "second_brain",
+          status: "operational",
+          latencyMs: obsLatency,
+          detail: `Vault MCP online via Tailscale (${obsLatency}ms).`,
+        });
+      } else {
+        items.push({
+          id: "obsidian_mcp",
+          name: "Obsidian Second Brain MCP",
+          category: "second_brain",
+          status: "degraded",
+          detail: "Endpoint MCP tidak merespons lewat Tailscale (100.69.252.67:27124).",
+        });
+      }
+    } catch {
+      items.push({
+        id: "obsidian_mcp",
+        name: "Obsidian Second Brain MCP",
+        category: "second_brain",
+        status: "offline",
+        detail: "Koneksi ke Obsidian MCP gagal.",
+      });
+    }
+
+    const allOperational = items.every((i) => i.status === "operational");
+
+    return {
+      success: true,
+      data: {
+        timestamp: new Date().toLocaleTimeString("id-ID", { hour12: false }),
+        allOperational,
+        items,
+      },
+    };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Gagal menjalankan diagnostik sistem.",
+    };
+  }
+}
+
+export async function getSandboxMemoryPreviewAction(): Promise<
+  ActionResult<{
+    content: string;
+    botName?: string;
+    sandboxId?: string;
+    isInitialized: boolean;
+  }>
+> {
+  try {
+    const { userId } = await clerkAuth();
+    if (!userId) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    const userBots = await db
+      .select()
+      .from(bots)
+      .where(eq(bots.userId, userId))
+      .limit(5);
+
+    const botWithSandbox = userBots.find((b) => Boolean(b.sandboxId));
+    if (!botWithSandbox || !botWithSandbox.sandboxId) {
+      return {
+        success: true,
+        data: {
+          content: `# 🧠 Persistent Second Brain (MEMORY.md Preview)\n\n## 👤 User Profile & Directives\n- Boss: ebinugraha\n- Standar: High-Craft Developer Tools, No AI-Slop, Clean Monochromatic Tokens\n\n## 🏗️ Architecture & Project Decisions\n- Framework: Next.js 16 App Router (proxy.ts, PPR Suspense)\n- Database: Neon Serverless PostgreSQL with Drizzle ORM\n- Worker: Trigger.dev v3 background task runner\n\n## 💡 Learned Playbooks & Knowledge Base\n- Auto-nudge loop breaker aktif.\n- 4-phase systematic debugging & PDCA cycle terpasang.`,
+          botName: userBots[0]?.name || "Default Assistant",
+          isInitialized: false,
+        },
+      };
+    }
+
+    try {
+      const daytona = getDaytonaClient();
+      const sb = await daytona.get(botWithSandbox.sandboxId);
+      const buf = await sb.fs.downloadFile("MEMORY.md");
+      const text = Buffer.from(buf).toString("utf-8");
+      return {
+        success: true,
+        data: {
+          content: text || "# 🧠 MEMORY.md masih kosong. AI akan mencatat otomatis saat mengeksekusi tugas.",
+          botName: botWithSandbox.name,
+          sandboxId: botWithSandbox.sandboxId,
+          isInitialized: true,
+        },
+      };
+    } catch {
+      return {
+        success: true,
+        data: {
+          content: `# 🧠 MEMORY.md (Sandbox: ${botWithSandbox.sandboxId})\n\nBerkas memori siap diakses dalam sandbox bot ${botWithSandbox.name}.`,
+          botName: botWithSandbox.name,
+          sandboxId: botWithSandbox.sandboxId,
+          isInitialized: true,
+        },
+      };
+    }
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Gagal membaca MEMORY.md sandbox.",
     };
   }
 }

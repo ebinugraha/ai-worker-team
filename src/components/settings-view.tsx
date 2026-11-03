@@ -4,36 +4,22 @@ import * as React from "react";
 import {
   saveUserSettingsAction,
   checkAiModelsAction,
-  testAiPromptAction,
   testModelConnection,
+  runSystemDiagnosticsAction,
+  getSandboxMemoryPreviewAction,
   type UserSettingsData,
+  type DiagnosticItem,
 } from "@/action/settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { NativeSelect } from "@/components/ui/native-select";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import {
-  CheckIcon,
-  RefreshCwIcon,
-  ServerIcon,
-  EyeIcon,
-  EyeOffIcon,
-  SendIcon,
-  LayersIcon,
-  SearchIcon,
-  ShieldCheckIcon,
-  CpuIcon,
-  RotateCcwIcon,
-  CheckCircle2Icon,
-  AlertCircleIcon,
-  WrenchIcon,
-  TerminalIcon,
-} from "lucide-react";
+import { EyeIcon, EyeOffIcon, Loader2Icon, CheckIcon, CopyIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PresetProvider {
   name: string;
-  description: string;
   baseUrl: string;
   defaultModel: string;
 }
@@ -41,29 +27,27 @@ interface PresetProvider {
 const PRESET_PROVIDERS: PresetProvider[] = [
   {
     name: "OMO API Call",
-    description: "GLM, Gemini, DeepSeek, & Kimi endpoint",
     baseUrl: "https://omoapicall.web.id/v1",
     defaultModel: "glm-5.3-flashh",
   },
   {
-    name: "9router (Local)",
-    description: "Local high-performance router",
+    name: "9router (Lokal)",
     baseUrl: "http://100.74.237.58:20128/v1",
     defaultModel: "my-combo-9router",
   },
   {
     name: "OpenAI",
-    description: "Official OpenAI API endpoint",
     baseUrl: "https://api.openai.com/v1",
     defaultModel: "gpt-4o-mini",
   },
   {
     name: "OpenRouter",
-    description: "Universal unified multi-model router",
     baseUrl: "https://openrouter.ai/api/v1",
     defaultModel: "anthropic/claude-3.5-sonnet",
   },
 ];
+
+type SettingsTab = "models" | "runtime" | "appearance" | "diagnostics";
 
 interface SettingsViewProps {
   initialSettings: UserSettingsData;
@@ -71,9 +55,18 @@ interface SettingsViewProps {
 }
 
 export function SettingsView({ initialSettings, initialModels = [] }: SettingsViewProps) {
+  const [activeTab, setActiveTab] = React.useState<SettingsTab>("models");
+
+  // Core Form State
   const [baseUrl, setBaseUrl] = React.useState(initialSettings.aiBaseUrl);
   const [apiKey, setApiKey] = React.useState(initialSettings.aiApiKey);
   const [model, setModel] = React.useState(initialSettings.aiModel);
+  const [temperature, setTemperature] = React.useState(initialSettings.temperature || "0.2");
+  const [maxTokens, setMaxTokens] = React.useState(initialSettings.maxTokens || 8192);
+  const [maxAutoContinues, setMaxAutoContinues] = React.useState(initialSettings.maxAutoContinues || 10);
+  const [autoMemory, setAutoMemory] = React.useState(initialSettings.autoMemory ?? true);
+  const [syntaxTheme, setSyntaxTheme] = React.useState(initialSettings.syntaxTheme || "dracula-soft");
+  const [terminalDensity, setTerminalDensity] = React.useState(initialSettings.terminalDensity || "editor");
   const [showApiKey, setShowApiKey] = React.useState(false);
 
   // Status and save states
@@ -85,715 +78,731 @@ export function SettingsView({ initialSettings, initialModels = [] }: SettingsVi
 
   // Model checking states
   const [isCheckingModels, setIsCheckingModels] = React.useState(false);
-  const [modelFilter, setModelFilter] = React.useState("");
   const [fetchedModels, setFetchedModels] = React.useState<string[]>(initialModels);
-  const [checkResult, setCheckResult] = React.useState<{
+  const [checkStatus, setCheckStatus] = React.useState<string | null>(
+    initialModels.length > 0 ? `${initialModels.length} model terdeteksi` : null
+  );
+
+  // Connection testing state
+  const [isTestingConnection, setIsTestingConnection] = React.useState(false);
+  const [testResult, setTestResult] = React.useState<{
     success: boolean;
     latencyMs?: number;
     message: string;
-  } | null>(
-    initialModels.length > 0
-      ? {
-          success: true,
-          message: `Ditemukan ${initialModels.length} model aktif dari endpoint.`,
-        }
-      : null
-  );
-
-  // Model prompt test states
-  const [testPrompt, setTestPrompt] = React.useState(
-    "Halo! Konfirmasi model apa yang kamu gunakan dan siap membantu apa?"
-  );
-  const [isTestingPrompt, setIsTestingPrompt] = React.useState(false);
-  const [testResponse, setTestResponse] = React.useState<{
-    success: boolean;
-    reply?: string;
-    latencyMs?: number;
-    error?: string;
   } | null>(null);
 
-  // Model connection & tool calling test states
-  const [isTestingModel, setIsTestingModel] = React.useState(false);
-  const [testModelResult, setTestModelResult] = React.useState<{
-    success: boolean;
-    supportsToolCalling?: boolean;
-    latencyMs?: number;
-    message: string;
-    toolCallSample?: string;
-  } | null>(null);
+  // Diagnostics state
+  const [isDiagnosing, setIsDiagnosing] = React.useState(false);
+  const [diagnostics, setDiagnostics] = React.useState<DiagnosticItem[]>([]);
 
-  const handleTestModel = async () => {
-    if (!baseUrl.trim() || !model.trim()) return;
-    setIsTestingModel(true);
-    setTestModelResult(null);
+  // Sandbox Memory preview state
+  const [isLoadingMemory, setIsLoadingMemory] = React.useState(false);
+  const [memoryContent, setMemoryContent] = React.useState<string | null>(null);
+  const [hasCopiedMemory, setHasCopiedMemory] = React.useState(false);
 
-    try {
-      const res = await testModelConnection({
-        aiBaseUrl: baseUrl,
-        aiApiKey: apiKey,
-        aiModel: model,
-      });
+  // Match active preset
+  const selectedPreset = React.useMemo(() => {
+    return PRESET_PROVIDERS.find((p) => p.baseUrl === baseUrl)?.name || "custom";
+  }, [baseUrl]);
 
-      if (res.success && res.data) {
-        setTestModelResult({
-          success: true,
-          supportsToolCalling: res.data.supportsToolCalling,
-          latencyMs: res.data.latencyMs,
-          message: res.data.message,
-          toolCallSample: res.data.toolCallSample,
-        });
-      } else {
-        setTestModelResult({
-          success: false,
-          supportsToolCalling: false,
-          message: res.error || "Gagal menguji model.",
-        });
-      }
-    } catch (err: unknown) {
-      setTestModelResult({
-        success: false,
-        supportsToolCalling: false,
-        message:
-          err instanceof Error
-            ? err.message
-            : "Terjadi kesalahan saat menguji model.",
-      });
-    } finally {
-      setIsTestingModel(false);
+  const handleSelectPreset = (presetName: string) => {
+    if (presetName === "custom") return;
+    const found = PRESET_PROVIDERS.find((p) => p.name === presetName);
+    if (found) {
+      setBaseUrl(found.baseUrl);
+      setModel(found.defaultModel);
     }
   };
 
-  const handleCheckModels = React.useCallback(
-    async (urlToCheck = baseUrl, keyToCheck = apiKey) => {
-      if (!urlToCheck.trim()) return;
-
-      setIsCheckingModels(true);
-      setCheckResult(null);
-
-      try {
-        const res = await checkAiModelsAction({
-          aiBaseUrl: urlToCheck,
-          aiApiKey: keyToCheck,
-        });
-
-        if (res.success && res.data) {
-          setFetchedModels(res.data.models);
-          setCheckResult({
-            success: true,
-            latencyMs: res.data.latencyMs,
-            message: res.message || `Ditemukan ${res.data.models.length} model.`,
-          });
-        } else {
-          setCheckResult({
-            success: false,
-            message: res.error || "Gagal memeriksa model dari endpoint.",
-          });
-        }
-      } catch (err: unknown) {
-        setCheckResult({
-          success: false,
-          message: err instanceof Error ? err.message : "Terjadi kesalahan.",
-        });
-      } finally {
-        setIsCheckingModels(false);
-      }
-    },
-    [baseUrl, apiKey]
-  );
-
-  const handleApplyPreset = (preset: PresetProvider) => {
-    setBaseUrl(preset.baseUrl);
-    setModel(preset.defaultModel);
-    setSaveFeedback(null);
-    handleCheckModels(preset.baseUrl, apiKey);
-  };
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = async () => {
     setIsSaving(true);
     setSaveFeedback(null);
-
     try {
       const res = await saveUserSettingsAction({
         aiBaseUrl: baseUrl,
         aiApiKey: apiKey,
         aiModel: model,
+        temperature,
+        maxTokens,
+        maxAutoContinues,
+        autoMemory,
+        syntaxTheme,
+        terminalDensity,
       });
 
       if (res.success) {
         setSaveFeedback({
           type: "success",
-          message: res.message || "Pengaturan AI berhasil disimpan!",
+          message: "Pengaturan tersimpan",
         });
+        setTimeout(() => setSaveFeedback(null), 3500);
       } else {
         setSaveFeedback({
           type: "error",
-          message: res.error || "Gagal menyimpan pengaturan.",
+          message: res.error || "Gagal menyimpan pengaturan",
         });
       }
-    } catch (err: unknown) {
+    } catch {
       setSaveFeedback({
         type: "error",
-        message: err instanceof Error ? err.message : "Terjadi kesalahan sistem.",
+        message: "Terjadi kesalahan saat menyimpan",
       });
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleResetToDefault = () => {
-    setBaseUrl(initialSettings.aiBaseUrl);
-    setApiKey(initialSettings.aiApiKey);
-    setModel(initialSettings.aiModel);
-    setSaveFeedback({
-      type: "success",
-      message: "Form dikembalikan ke nilai default konfigurasi awal.",
-    });
-  };
-
-  const handleRunPromptTest = async () => {
-    if (!baseUrl.trim() || !model.trim()) return;
-
-    setIsTestingPrompt(true);
-    setTestResponse(null);
-
+  const handleCheckModels = async () => {
+    setIsCheckingModels(true);
+    setCheckStatus(null);
     try {
-      const res = await testAiPromptAction({
+      const res = await checkAiModelsAction({
         aiBaseUrl: baseUrl,
         aiApiKey: apiKey,
-        aiModel: model,
-        prompt: testPrompt,
       });
-
       if (res.success && res.data) {
-        setTestResponse({
-          success: true,
-          reply: res.data.reply,
-          latencyMs: res.data.latencyMs,
-        });
+        setFetchedModels(res.data.models);
+        setCheckStatus(`${res.data.models.length} model terdeteksi`);
       } else {
-        setTestResponse({
-          success: false,
-          error: res.error || "Gagal mendapatkan respon dari model.",
-        });
+        setCheckStatus(res.error || "Gagal memindai model");
       }
-    } catch (err: unknown) {
-      setTestResponse({
-        success: false,
-        error: err instanceof Error ? err.message : "Terjadi kesalahan uji coba.",
-      });
+    } catch {
+      setCheckStatus("Gagal menghubungi endpoint");
     } finally {
-      setIsTestingPrompt(false);
+      setIsCheckingModels(false);
     }
   };
 
-  // Filtered model list
-  const filteredModels = React.useMemo(() => {
-    if (!modelFilter.trim()) return fetchedModels;
-    const q = modelFilter.toLowerCase();
-    return fetchedModels.filter((m) => m.toLowerCase().includes(q));
-  }, [fetchedModels, modelFilter]);
+  const handleTestConnection = async () => {
+    setIsTestingConnection(true);
+    setTestResult(null);
+    try {
+      const res = await testModelConnection({
+        aiBaseUrl: baseUrl,
+        aiApiKey: apiKey,
+        aiModel: model,
+      });
+      if (res.success && res.data) {
+        setTestResult({
+          success: true,
+          latencyMs: res.data.latencyMs,
+          message: `Terhubung (${res.data.latencyMs} ms) · Tool calling ${res.data.supportsToolCalling ? "didukung" : "tidak aktif"}`,
+        });
+      } else {
+        setTestResult({
+          success: false,
+          message: res.error || "Gagal menghubungi model",
+        });
+      }
+    } catch {
+      setTestResult({
+        success: false,
+        message: "Terjadi kesalahan saat menguji sambungan",
+      });
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
 
-  // Model categories for quick filter
-  const categoryFilters = React.useMemo(() => {
-    const list = ["Semua"];
-    if (fetchedModels.some((m) => /glm/i.test(m))) list.push("GLM");
-    if (fetchedModels.some((m) => /deepseek/i.test(m))) list.push("DeepSeek");
-    if (fetchedModels.some((m) => /gemini/i.test(m))) list.push("Gemini");
-    if (fetchedModels.some((m) => /kimi/i.test(m))) list.push("Kimi");
-    if (fetchedModels.some((m) => /minimax/i.test(m))) list.push("MiniMax");
-    if (fetchedModels.some((m) => /gpt|openai/i.test(m))) list.push("OpenAI");
-    if (fetchedModels.some((m) => /claude/i.test(m))) list.push("Claude");
-    return list;
-  }, [fetchedModels]);
+  const handleRunDiagnostics = async () => {
+    setIsDiagnosing(true);
+    try {
+      const res = await runSystemDiagnosticsAction({
+        aiBaseUrl: baseUrl,
+        aiApiKey: apiKey,
+      });
+      if (res.success && res.data) {
+        setDiagnostics(res.data.items);
+      }
+    } catch {
+      // Diagnostic failure handled
+    } finally {
+      setIsDiagnosing(false);
+    }
+  };
+
+  const handleLoadMemory = async () => {
+    setIsLoadingMemory(true);
+    try {
+      const res = await getSandboxMemoryPreviewAction();
+      if (res.success && res.data) {
+        setMemoryContent(res.data.content);
+      } else {
+        setMemoryContent(res.error || "Belum ada berkas MEMORY.md yang tersimpan di sandbox.");
+      }
+    } catch {
+      setMemoryContent("Gagal mengambil data memori.");
+    } finally {
+      setIsLoadingMemory(false);
+    }
+  };
+
+  const handleCopyMemory = () => {
+    if (!memoryContent) return;
+    navigator.clipboard.writeText(memoryContent);
+    setHasCopiedMemory(true);
+    setTimeout(() => setHasCopiedMemory(false), 2000);
+  };
+
+  const navItems: { id: SettingsTab; label: string }[] = [
+    { id: "models", label: "Model & API" },
+    { id: "runtime", label: "Perilaku Agen" },
+    { id: "appearance", label: "Memori & Tampilan" },
+    { id: "diagnostics", label: "Status Sistem" },
+  ];
 
   return (
-    <div className="flex-1 w-full max-w-7xl mx-auto p-6 sm:p-8 md:p-10 space-y-8 overflow-y-auto">
-      {/* Top Header & Breadcrumb */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
-        <div className="flex items-center gap-2.5">
-          <SidebarTrigger className="md:hidden size-8 -ml-1 rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 cursor-pointer" />
-          <div>
-            <div className="flex items-center gap-2 text-xs font-mono text-zinc-500 mb-0.5">
-              <span>workspace</span>
-              <span>/</span>
-              <span className="text-zinc-300">settings</span>
-              <span>/</span>
-              <span className="text-zinc-100 font-semibold">models</span>
-            </div>
-            <h1 className="text-lg sm:text-xl font-semibold tracking-tight text-zinc-100">
-              AI Model & Provider Configuration
-            </h1>
-          </div>
+    <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-background">
+      {/* Gemini-Style Quiet Top Header */}
+      <header className="h-13 shrink-0 flex items-center justify-between px-4 sm:px-6 md:px-8 border-b border-border/40 bg-background">
+        <div className="flex items-center gap-3">
+          <SidebarTrigger />
+          <div className="h-4 w-px bg-border/60" />
+          <h1 className="text-sm font-normal text-foreground">Pengaturan</h1>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-900 border border-zinc-800 text-xs font-mono text-zinc-300">
-            <ShieldCheckIcon className="size-3.5 text-emerald-400" />
-            <span>{initialSettings.isConfigured ? "Custom Provider" : "Default Mode"}</span>
-          </div>
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-900 border border-zinc-800 text-xs font-mono text-zinc-400">
-            <CpuIcon className="size-3.5 text-zinc-300" />
-            <span className="truncate max-w-[150px]">{model}</span>
-          </div>
+        <div className="flex items-center gap-3">
+          {saveFeedback && (
+            <span
+              className={cn(
+                "text-xs transition-opacity duration-200",
+                saveFeedback.type === "success" ? "text-muted-foreground" : "text-destructive"
+              )}
+            >
+              {saveFeedback.message}
+            </span>
+          )}
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="h-8 px-4 text-xs font-normal rounded-full bg-foreground text-background hover:bg-foreground/90 transition-colors"
+          >
+            {isSaving ? (
+              <>
+                <Loader2Icon className="size-3.5 mr-1.5 animate-spin" />
+                Menyimpan
+              </>
+            ) : (
+              "Simpan"
+            )}
+          </Button>
         </div>
-      </div>
+      </header>
 
-      {/* Preset Quick Select Bar */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-mono text-zinc-400 flex items-center gap-1.5 uppercase tracking-wider">
-            <LayersIcon className="size-3.5 text-zinc-400" />
-            Provider Presets
-          </span>
-          <span className="text-[11px] font-mono text-zinc-500 hidden sm:inline">
-            Click to auto-populate endpoint & default model
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-          {PRESET_PROVIDERS.map((preset) => {
-            const isSelected = baseUrl === preset.baseUrl;
-            return (
-              <button
-                key={preset.name}
-                type="button"
-                onClick={() => handleApplyPreset(preset)}
-                className={cn(
-                  "flex flex-col text-left p-3 rounded-md border transition-colors cursor-pointer outline-none select-none",
-                  isSelected
-                    ? "bg-zinc-900 border-zinc-500 text-zinc-100 ring-1 ring-zinc-500"
-                    : "bg-zinc-950/60 border-zinc-800 hover:bg-zinc-900/50 hover:border-zinc-700 text-zinc-300"
-                )}
-              >
-                <div className="flex items-center justify-between w-full">
-                  <span className="font-semibold text-xs text-zinc-200">{preset.name}</span>
-                  {isSelected && <CheckIcon className="size-3.5 text-emerald-400 shrink-0" />}
-                </div>
-                <p className="text-[11px] text-zinc-500 mt-0.5 line-clamp-1">
-                  {preset.description}
-                </p>
-                <div className="mt-2 text-[10px] font-mono text-zinc-400 truncate">
-                  {preset.defaultModel}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Two-Column Settings Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Form & Connection (7 cols) */}
-        <div className="lg:col-span-7 space-y-5">
-          <form onSubmit={handleSave} className="space-y-5">
-            <Card className="bg-[#121215] border border-zinc-800 rounded-md shadow-xs">
-              <CardHeader className="border-b border-zinc-800/80 px-4 py-3">
-                <CardTitle className="text-xs font-mono uppercase tracking-wider text-zinc-300 flex items-center gap-2">
-                  <ServerIcon className="size-3.5 text-zinc-400" />
-                  API Credentials & Routing
-                </CardTitle>
-                <CardDescription className="text-xs text-zinc-500">
-                  OpenAI-compatible HTTP endpoint specifications (/v1/chat/completions).
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="p-4 space-y-4">
-                {/* Base URL */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <label className="font-medium text-zinc-300">Base URL</label>
-                    <span className="font-mono text-[11px] text-zinc-500">Must end in /v1</span>
-                  </div>
-                  <Input
-                    value={baseUrl}
-                    onChange={(e) => setBaseUrl(e.target.value)}
-                    placeholder="https://omoapicall.web.id/v1"
-                    required
-                    className="font-mono text-xs h-8 bg-zinc-950 border-zinc-800 focus:border-zinc-600 rounded-md"
-                  />
-                </div>
-
-                {/* API Key */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-300">API Key / Auth Bearer</label>
-                  <div className="relative">
-                    <Input
-                      type={showApiKey ? "text" : "password"}
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="sk-... or omop-..."
-                      className="font-mono text-xs h-8 bg-zinc-950 border-zinc-800 focus:border-zinc-600 rounded-md pr-9"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
-                      title={showApiKey ? "Hide API Key" : "Show API Key"}
-                    >
-                      {showApiKey ? (
-                        <EyeOffIcon className="size-3.5" />
-                      ) : (
-                        <EyeIcon className="size-3.5" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Model Selection & Check */}
-                <div className="space-y-1.5 pt-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <label className="font-medium text-zinc-300">Active Model Name</label>
-                    <span className="font-mono text-[11px] text-zinc-500">
-                      Exact identifier
-                    </span>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Input
-                      value={model}
-                      onChange={(e) => setModel(e.target.value)}
-                      placeholder="glm-5.3-flashh"
-                      required
-                      className="font-mono text-xs h-8 bg-zinc-950 border-zinc-800 focus:border-zinc-600 rounded-md flex-1"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleCheckModels()}
-                      disabled={isCheckingModels || !baseUrl.trim()}
-                      className="h-8 px-3 text-xs font-mono border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 rounded-md shrink-0 gap-1.5"
-                    >
-                      <RefreshCwIcon
-                        className={cn("size-3", isCheckingModels && "animate-spin")}
-                      />
-                      {isCheckingModels ? "Querying..." : "Scan Models"}
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Check models feedback banner */}
-                {checkResult && (
-                  <div
-                    className={cn(
-                      "p-3 rounded-md text-xs font-mono flex items-start gap-2.5 border transition-all",
-                      checkResult.success
-                        ? "bg-emerald-950/20 text-emerald-300 border-emerald-500/30"
-                        : "bg-rose-950/20 text-rose-300 border-rose-500/30"
-                    )}
-                  >
-                    {checkResult.success ? (
-                      <CheckCircle2Icon className="size-4 shrink-0 mt-0.5 text-emerald-400" />
-                    ) : (
-                      <AlertCircleIcon className="size-4 shrink-0 mt-0.5 text-rose-400" />
-                    )}
-                    <div className="flex-1">
-                      <div className="font-semibold flex items-center justify-between">
-                        <span>{checkResult.success ? "Endpoint Online" : "Connection Error"}</span>
-                        {checkResult.latencyMs !== undefined && (
-                          <span className="tabular-nums text-[11px] opacity-80">
-                            {checkResult.latencyMs}ms
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-0.5 text-[11px] opacity-90 leading-relaxed font-sans">
-                        {checkResult.message}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Model Connection & Tool Calling Test Banner */}
-                {testModelResult && (
-                  <div
-                    className={cn(
-                      "p-3 rounded-md text-xs font-mono space-y-2 border transition-all",
-                      testModelResult.success
-                        ? testModelResult.supportsToolCalling
-                          ? "bg-emerald-950/20 border-emerald-500/30 text-emerald-300"
-                          : "bg-amber-950/20 border-amber-500/30 text-amber-300"
-                        : "bg-rose-950/20 border-rose-500/30 text-rose-300"
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {testModelResult.success ? (
-                          testModelResult.supportsToolCalling ? (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
-                              ✓ TOOL CALLING VERIFIED
-                            </span>
-                          ) : (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/20 text-amber-400 border border-amber-500/40">
-                              ! PROMPT-ONLY MODE
-                            </span>
-                          )
-                        ) : (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-rose-500/20 text-rose-400 border border-rose-500/40">
-                            ✕ TEST FAILED
-                          </span>
-                        )}
-                        <span className="font-semibold text-zinc-200">
-                          [{model}]
-                        </span>
-                      </div>
-                      {testModelResult.latencyMs !== undefined && (
-                        <span className="tabular-nums text-[11px] text-zinc-400">
-                          {testModelResult.latencyMs}ms
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
-                      {testModelResult.message}
-                    </p>
-
-                    {testModelResult.toolCallSample && (
-                      <div className="space-y-1">
-                        <span className="text-[10px] uppercase font-mono text-zinc-500 tracking-wider">
-                          Sample Tool Call Payload:
-                        </span>
-                        <pre className="p-2 rounded bg-black border border-zinc-800 font-mono text-[11px] overflow-x-auto text-zinc-300">
-                          {testModelResult.toolCallSample}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Save feedback banner */}
-                {saveFeedback && (
-                  <div
-                    className={cn(
-                      "p-3 rounded-md text-xs font-mono flex items-center gap-2.5 border transition-all",
-                      saveFeedback.type === "success"
-                        ? "bg-emerald-950/20 text-emerald-300 border-emerald-500/30"
-                        : "bg-rose-950/20 text-rose-300 border-rose-500/30"
-                    )}
-                  >
-                    {saveFeedback.type === "success" ? (
-                      <CheckCircle2Icon className="size-4 shrink-0 text-emerald-400" />
-                    ) : (
-                      <AlertCircleIcon className="size-4 shrink-0 text-rose-400" />
-                    )}
-                    <span>{saveFeedback.message}</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Action Bar */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleResetToDefault}
-                className="text-xs font-mono text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md gap-1.5"
-              >
-                <RotateCcwIcon className="size-3" />
-                Reset Defaults
-              </Button>
-
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleTestModel}
-                  disabled={isTestingModel || !baseUrl.trim() || !model.trim()}
-                  className="h-8 text-xs font-mono gap-1.5 border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 rounded-md cursor-pointer flex-1 sm:flex-initial"
-                >
-                  <WrenchIcon
-                    className={cn("size-3.5 text-amber-400", isTestingModel && "animate-spin")}
-                  />
-                  {isTestingModel ? "Testing Tool..." : "Verify Model"}
-                </Button>
-
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={isSaving}
-                  className="h-8 px-4 text-xs font-mono font-medium gap-1.5 bg-zinc-100 hover:bg-white text-zinc-950 border border-zinc-200 rounded-md shadow-xs cursor-pointer flex-1 sm:flex-initial"
-                >
-                  <CheckIcon className="size-3.5" />
-                  {isSaving ? "Saving..." : "Save Config"}
-                </Button>
-              </div>
-            </div>
-          </form>
-        </div>
-
-        {/* Right Column: Model Explorer & Live Prompt Probe (5 cols) */}
-        <div className="lg:col-span-5 space-y-5">
-          {/* Model Catalog Card */}
-          <Card className="bg-[#121215] border border-zinc-800 rounded-md shadow-xs">
-            <CardHeader className="border-b border-zinc-800/80 px-4 py-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xs font-mono uppercase tracking-wider text-zinc-300 flex items-center gap-2">
-                  <CpuIcon className="size-3.5 text-zinc-400" />
-                  Detected Models
-                </CardTitle>
-                {fetchedModels.length > 0 && (
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 tabular-nums">
-                    {fetchedModels.length} available
-                  </span>
-                )}
-              </div>
-            </CardHeader>
-
-            <CardContent className="p-4 space-y-3">
-              {fetchedModels.length > 0 ? (
-                <>
-                  <div className="relative">
-                    <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3 text-zinc-500" />
-                    <Input
-                      value={modelFilter}
-                      onChange={(e) => setModelFilter(e.target.value)}
-                      placeholder="Filter model identifiers..."
-                      className="pl-8 text-xs font-mono h-7 bg-zinc-950 border-zinc-800 focus:border-zinc-600 rounded-md"
-                    />
-                  </div>
-
-                  {/* Category Pills */}
-                  <div className="flex items-center gap-1 overflow-x-auto pb-1">
-                    {categoryFilters.map((cat) => {
-                      const isActive =
-                        cat === "Semua" ? !modelFilter : modelFilter.toLowerCase() === cat.toLowerCase();
-                      return (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => setModelFilter(cat === "Semua" ? "" : cat)}
-                          className={cn(
-                            "text-[10px] font-mono px-2 py-0.5 rounded transition-colors cursor-pointer shrink-0 border",
-                            isActive
-                              ? "bg-zinc-100 text-zinc-950 font-semibold border-zinc-200"
-                              : "bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200"
-                          )}
-                        >
-                          {cat}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Badges container */}
-                  <div className="flex flex-wrap gap-1.5 pt-1 max-h-56 overflow-y-auto pr-1 border border-zinc-800/60 rounded-md p-2 bg-zinc-950/60">
-                    {filteredModels.length > 0 ? (
-                      filteredModels.map((m) => {
-                        const isSelected = model === m;
-                        return (
-                          <button
-                            key={m}
-                            type="button"
-                            onClick={() => setModel(m)}
-                            className={cn(
-                              "inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-mono transition-colors cursor-pointer border select-none",
-                              isSelected
-                                ? "bg-zinc-100 text-zinc-950 border-zinc-200 font-semibold shadow-2xs"
-                                : "bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-zinc-700 hover:text-white"
-                            )}
-                          >
-                            {isSelected ? (
-                              <CheckIcon className="size-3 text-zinc-950 shrink-0" />
-                            ) : (
-                              <CpuIcon className="size-3 text-zinc-500 shrink-0" />
-                            )}
-                            <span className="truncate max-w-[190px]">{m}</span>
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <div className="w-full py-4 text-center text-xs font-mono text-zinc-500">
-                        No models matching &quot;{modelFilter}&quot;
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-6 px-3 border border-dashed border-zinc-800 rounded-md bg-zinc-950/30 space-y-2">
-                  <TerminalIcon className="size-5 text-zinc-600 mx-auto" />
-                  <p className="text-xs text-zinc-400 font-mono">
-                    No models cached yet.
-                  </p>
-                  <Button
+      {/* Main Container: Left-Aligned Menu & Content Side-by-Side (Gemini Standard) */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="w-full flex flex-col md:flex-row min-h-full">
+          {/* Left Category Menu: Anchored on the left */}
+          <aside className="w-full md:w-56 lg:w-60 shrink-0 p-4 sm:p-6 md:py-8 md:pl-8 md:pr-4">
+            {/* Mobile Horizontal Pill Scroll */}
+            <div className="flex md:hidden gap-1.5 overflow-x-auto pb-2 scrollbar-none">
+              {navItems.map((item) => {
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
                     type="button"
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      if (item.id === "diagnostics" && diagnostics.length === 0) {
+                        handleRunDiagnostics();
+                      }
+                    }}
+                    className={cn(
+                      "px-3.5 py-1.5 text-xs rounded-full whitespace-nowrap transition-colors",
+                      isActive
+                        ? "bg-secondary text-secondary-foreground font-medium"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Desktop Vertical Pill List */}
+            <nav aria-label="Menu Pengaturan" className="hidden md:flex flex-col gap-1">
+              {navItems.map((item) => {
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      if (item.id === "diagnostics" && diagnostics.length === 0) {
+                        handleRunDiagnostics();
+                      }
+                    }}
+                    className={cn(
+                      "w-full text-left px-3.5 py-2 rounded-full text-xs sm:text-sm transition-colors",
+                      isActive
+                        ? "bg-secondary text-secondary-foreground font-medium"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/30 font-normal"
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
+
+          {/* Right Content Area: Aligned beside menu, sharing top guideline */}
+          <main className="flex-1 min-w-0 p-4 sm:p-6 md:py-8 md:px-8 lg:px-12 md:border-l md:border-border/30 max-w-2xl">
+            {/* TAB 1: MODEL & API */}
+            {activeTab === "models" && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-lg font-normal text-foreground">Model & Kredensial AI</h2>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                    Atur penyedia layanan, alamat endpoint, dan model AI yang digunakan tim asisten.
+                  </p>
+                </div>
+
+                <div className="divide-y divide-border/30">
+                  {/* Preset Provider */}
+                  <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5 max-w-sm">
+                      <label htmlFor="preset-select" className="text-sm font-normal text-foreground">
+                        Penyedia Cepat
+                      </label>
+                      <p className="text-xs text-muted-foreground leading-normal">
+                        Pilih konfigurasi siap pakai dari penyedia yang sering digunakan.
+                      </p>
+                    </div>
+                    <NativeSelect
+                      id="preset-select"
+                      value={selectedPreset}
+                      onChange={(e) => handleSelectPreset(e.target.value)}
+                      className="w-full sm:w-60"
+                    >
+                      {PRESET_PROVIDERS.map((p) => (
+                        <option key={p.name} value={p.name}>
+                          {p.name}
+                        </option>
+                      ))}
+                      <option value="custom">Kustom (Manual)</option>
+                    </NativeSelect>
+                  </div>
+
+                  {/* Base URL */}
+                  <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5 max-w-sm">
+                      <label htmlFor="base-url-input" className="text-sm font-normal text-foreground">
+                        Base URL
+                      </label>
+                      <p className="text-xs text-muted-foreground leading-normal">
+                        Alamat URL endpoint API kompatibel OpenAI (diakhiri /v1).
+                      </p>
+                    </div>
+                    <Input
+                      id="base-url-input"
+                      value={baseUrl}
+                      onChange={(e) => setBaseUrl(e.target.value)}
+                      placeholder="https://api.openai.com/v1"
+                      className="w-full sm:w-64 h-8.5 font-mono text-xs rounded-lg border-border/50 bg-muted/20"
+                    />
+                  </div>
+
+                  {/* API Key */}
+                  <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5 max-w-sm">
+                      <label htmlFor="api-key-input" className="text-sm font-normal text-foreground">
+                        Kunci API
+                      </label>
+                      <p className="text-xs text-muted-foreground leading-normal">
+                        Kunci autentikasi endpoint. Disimpan terenkripsi di database.
+                      </p>
+                    </div>
+                    <div className="relative w-full sm:w-64">
+                      <Input
+                        id="api-key-input"
+                        type={showApiKey ? "text" : "password"}
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        placeholder="Masukkan kunci API..."
+                        className="w-full h-8.5 pr-8 font-mono text-xs rounded-lg border-border/50 bg-muted/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        title={showApiKey ? "Sembunyikan" : "Tampilkan"}
+                      >
+                        {showApiKey ? (
+                          <EyeOffIcon className="size-3.5" />
+                        ) : (
+                          <EyeIcon className="size-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Active Model */}
+                  <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5 max-w-sm">
+                      <label htmlFor="active-model-input" className="text-sm font-normal text-foreground">
+                        Model Aktif
+                      </label>
+                      <p className="text-xs text-muted-foreground leading-normal">
+                        Identifier model bahasa yang dipanggil saat percakapan berlangsung.
+                      </p>
+                    </div>
+                    <div className="w-full sm:w-64 space-y-1.5">
+                      <Input
+                        id="active-model-input"
+                        value={model}
+                        onChange={(e) => setModel(e.target.value)}
+                        placeholder="glm-5.3-flashh"
+                        className="w-full h-8.5 font-mono text-xs rounded-lg border-border/50 bg-muted/20"
+                      />
+                      {fetchedModels.length > 0 && (
+                        <NativeSelect
+                          value={fetchedModels.includes(model) ? model : ""}
+                          onChange={(e) => {
+                            if (e.target.value) setModel(e.target.value);
+                          }}
+                          className="w-full text-xs"
+                        >
+                          <option value="">Pilih dari {fetchedModels.length} model terdeteksi...</option>
+                          {fetchedModels.map((m) => (
+                            <option key={m} value={m}>
+                              {m}
+                            </option>
+                          ))}
+                        </NativeSelect>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Connection Verification */}
+                  <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5 max-w-sm">
+                      <span className="text-sm font-normal text-foreground">
+                        Pemeriksaan Koneksi
+                      </span>
+                      <p className="text-xs text-muted-foreground leading-normal">
+                        Uji responsivitas endpoint dan ketersediaan daftar model bahasa.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCheckModels}
+                        disabled={isCheckingModels || !baseUrl}
+                        className="h-8 text-xs rounded-full font-normal border-border/50 bg-transparent hover:bg-muted/30"
+                      >
+                        {isCheckingModels ? (
+                          <Loader2Icon className="size-3 mr-1 animate-spin" />
+                        ) : null}
+                        Pindai Model
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleTestConnection}
+                        disabled={isTestingConnection || !baseUrl || !model}
+                        className="h-8 text-xs rounded-full font-normal border-border/50 bg-transparent hover:bg-muted/30"
+                      >
+                        {isTestingConnection ? (
+                          <Loader2Icon className="size-3 mr-1 animate-spin" />
+                        ) : null}
+                        Uji Sambungan
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Info Row */}
+                {(checkStatus || testResult) && (
+                  <div className="text-xs text-muted-foreground pt-2 flex flex-col gap-1 border-t border-border/30">
+                    {checkStatus && <p>Daftar Model: {checkStatus}</p>}
+                    {testResult && (
+                      <p className={testResult.success ? "text-foreground" : "text-destructive"}>
+                        Hasil Uji: {testResult.message}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 2: PERILAKU AGEN */}
+            {activeTab === "runtime" && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-lg font-normal text-foreground">Perilaku & Runtime Agen</h2>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                    Kendali tingkat kreativitas model, batas token output, dan anggaran putaran berpikir otomatis.
+                  </p>
+                </div>
+
+                <div className="divide-y divide-border/30">
+                  {/* Temperature */}
+                  <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5 max-w-sm">
+                      <label htmlFor="temp-select" className="text-sm font-normal text-foreground">
+                        Temperatur
+                      </label>
+                      <p className="text-xs text-muted-foreground leading-normal">
+                        Tingkat variasi output. Nilai rendah lebih konsisten dan presisi untuk kode.
+                      </p>
+                    </div>
+                    <NativeSelect
+                      id="temp-select"
+                      value={temperature}
+                      onChange={(e) => setTemperature(e.target.value)}
+                      className="w-full sm:w-56"
+                    >
+                      <option value="0.0">0.0 — Presisi Ketat (Koding)</option>
+                      <option value="0.2">0.2 — Seimbang (Standar Agen)</option>
+                      <option value="0.7">0.7 — Kreatif (Penulisan Bebas)</option>
+                      <option value="1.0">1.0 — Eksperimental</option>
+                    </NativeSelect>
+                  </div>
+
+                  {/* Max Tokens */}
+                  <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5 max-w-sm">
+                      <label htmlFor="max-tokens-select" className="text-sm font-normal text-foreground">
+                        Batas Output Token
+                      </label>
+                      <p className="text-xs text-muted-foreground leading-normal">
+                        Batas maksimum panjang jawaban yang diproduksi agen dalam satu giliran.
+                      </p>
+                    </div>
+                    <NativeSelect
+                      id="max-tokens-select"
+                      value={String(maxTokens)}
+                      onChange={(e) => setMaxTokens(Number(e.target.value))}
+                      className="w-full sm:w-56"
+                    >
+                      <option value="4096">4,096 Token</option>
+                      <option value="8192">8,192 Token (Standar)</option>
+                      <option value="16384">16,384 Token</option>
+                      <option value="32768">32,768 Token</option>
+                    </NativeSelect>
+                  </div>
+
+                  {/* Max Auto Continues */}
+                  <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5 max-w-sm">
+                      <label htmlFor="max-turns-select" className="text-sm font-normal text-foreground">
+                        Batas Putaran Otomatis
+                      </label>
+                      <p className="text-xs text-muted-foreground leading-normal">
+                        Maksimum putaran agen berpikir dan memanggil alat secara mandiri sebelum jeda.
+                      </p>
+                    </div>
+                    <NativeSelect
+                      id="max-turns-select"
+                      value={String(maxAutoContinues)}
+                      onChange={(e) => setMaxAutoContinues(Number(e.target.value))}
+                      className="w-full sm:w-56"
+                    >
+                      <option value="5">5 Putaran (Hemat)</option>
+                      <option value="10">10 Putaran (Standar)</option>
+                      <option value="15">15 Putaran (Tugas Kompleks)</option>
+                      <option value="20">20 Putaran (Maksimum)</option>
+                    </NativeSelect>
+                  </div>
+
+                  {/* Auto Memory */}
+                  <div className="py-4 flex items-center justify-between gap-4">
+                    <div className="space-y-0.5 max-w-sm">
+                      <span className="text-sm font-normal text-foreground">
+                        Perekaman Memori Mandiri
+                      </span>
+                      <p className="text-xs text-muted-foreground leading-normal">
+                        Izinkan agen mencatat aturan, preferensi pengguna, dan temuan penting ke MEMORY.md.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={autoMemory}
+                      onCheckedChange={(checked) => setAutoMemory(checked)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: MEMORI & TAMPILAN */}
+            {activeTab === "appearance" && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-lg font-normal text-foreground">Tampilan & Memori</h2>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                    Atur tema penyorotan sintaks kode dan tinjau catatan memori jangka panjang agen.
+                  </p>
+                </div>
+
+                <div className="divide-y divide-border/30">
+                  {/* Syntax Theme */}
+                  <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5 max-w-sm">
+                      <label htmlFor="theme-select" className="text-sm font-normal text-foreground">
+                        Tema Pewarnaan Kode
+                      </label>
+                      <p className="text-xs text-muted-foreground leading-normal">
+                        Skema tema penyorot sintaks Shiki pada blok kode markdown dan terminal.
+                      </p>
+                    </div>
+                    <NativeSelect
+                      id="theme-select"
+                      value={syntaxTheme}
+                      onChange={(e) => setSyntaxTheme(e.target.value)}
+                      className="w-full sm:w-56"
+                    >
+                      <option value="dracula-soft">Dracula Soft</option>
+                      <option value="github-dark">GitHub Dark</option>
+                      <option value="one-dark-pro">One Dark Pro</option>
+                      <option value="vitesse-dark">Vitesse Dark</option>
+                    </NativeSelect>
+                  </div>
+
+                  {/* Terminal Density */}
+                  <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5 max-w-sm">
+                      <label htmlFor="density-select" className="text-sm font-normal text-foreground">
+                        Kerapatan Terminal
+                      </label>
+                      <p className="text-xs text-muted-foreground leading-normal">
+                        Format visual tampilan riwayat eksekusi shell terminal agen.
+                      </p>
+                    </div>
+                    <NativeSelect
+                      id="density-select"
+                      value={terminalDensity}
+                      onChange={(e) => setTerminalDensity(e.target.value)}
+                      className="w-full sm:w-56"
+                    >
+                      <option value="editor">Editor Lengkap (Nomor Baris)</option>
+                      <option value="compact">Ringkas (Minimalis)</option>
+                    </NativeSelect>
+                  </div>
+
+                  {/* Memory Inspector Section */}
+                  <div className="py-4 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="space-y-0.5 max-w-sm">
+                        <span className="text-sm font-normal text-foreground">
+                          Catatan Memori Jangka Panjang (MEMORY.md)
+                        </span>
+                        <p className="text-xs text-muted-foreground leading-normal">
+                          Isi berkas memori sandbox yang dibaca agen pada setiap awal percakapan.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {memoryContent && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleCopyMemory}
+                            className="h-8 text-xs rounded-full font-normal text-muted-foreground hover:text-foreground"
+                          >
+                            {hasCopiedMemory ? (
+                              <>
+                                <CheckIcon className="size-3 mr-1 text-foreground" />
+                                Tersalin
+                              </>
+                            ) : (
+                              <>
+                                <CopyIcon className="size-3 mr-1" />
+                                Salin
+                              </>
+                            )}
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleLoadMemory}
+                          disabled={isLoadingMemory}
+                          className="h-8 text-xs rounded-full font-normal border-border/50 bg-transparent hover:bg-muted/30"
+                        >
+                          {isLoadingMemory ? (
+                            <Loader2Icon className="size-3 mr-1 animate-spin" />
+                          ) : null}
+                          Muat Catatan
+                        </Button>
+                      </div>
+                    </div>
+
+                    {memoryContent && (
+                      <pre className="p-3.5 bg-muted/20 border border-border/40 rounded-xl text-xs font-mono text-muted-foreground leading-relaxed max-h-64 overflow-y-auto whitespace-pre-wrap select-text">
+                        {memoryContent}
+                      </pre>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: STATUS SISTEM */}
+            {activeTab === "diagnostics" && (
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-normal text-foreground">Status Infrastruktur Sistem</h2>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                      Pemeriksaan kesehatan konektivitas database, AI gateway, sandbox, dan second brain.
+                    </p>
+                  </div>
+                  <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleCheckModels()}
-                    disabled={isCheckingModels || !baseUrl.trim()}
-                    className="h-7 text-xs font-mono border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 rounded-md"
+                    onClick={handleRunDiagnostics}
+                    disabled={isDiagnosing}
+                    className="h-8 text-xs rounded-full font-normal border-border/50 bg-transparent hover:bg-muted/30 shrink-0"
                   >
-                    <RefreshCwIcon className={cn("size-3", isCheckingModels && "animate-spin")} />
-                    {isCheckingModels ? "Scanning..." : "Scan Models Now"}
+                    {isDiagnosing ? (
+                      <Loader2Icon className="size-3 mr-1.5 animate-spin" />
+                    ) : null}
+                    Periksa Ulang
                   </Button>
                 </div>
-              )}
-            </CardContent>
-          </Card>
 
-          {/* Live Prompt Probe Card */}
-          <Card className="bg-[#121215] border border-zinc-800 rounded-md shadow-xs">
-            <CardHeader className="border-b border-zinc-800/80 px-4 py-3">
-              <CardTitle className="text-xs font-mono uppercase tracking-wider text-zinc-300 flex items-center gap-2">
-                <SendIcon className="size-3.5 text-zinc-400" />
-                Live Prompt Verification
-              </CardTitle>
-            </CardHeader>
-
-            <CardContent className="p-4 space-y-3">
-              <div className="space-y-1.5">
-                <Input
-                  value={testPrompt}
-                  onChange={(e) => setTestPrompt(e.target.value)}
-                  placeholder="Test prompt string..."
-                  className="text-xs font-mono h-8 bg-zinc-950 border-zinc-800 focus:border-zinc-600 rounded-md"
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleRunPromptTest}
-                  disabled={isTestingPrompt || !baseUrl.trim() || !model.trim()}
-                  className="w-full h-7 text-xs font-mono border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 rounded-md gap-1.5"
-                >
-                  <SendIcon className={cn("size-3", isTestingPrompt && "animate-pulse")} />
-                  {isTestingPrompt ? "Executing Probe..." : "Send Test Probe"}
-                </Button>
-              </div>
-
-              {testResponse && (
-                <div
-                  className={cn(
-                    "p-3 rounded-md text-xs space-y-1.5 border transition-all font-mono",
-                    testResponse.success
-                      ? "bg-zinc-950 border-zinc-800 text-zinc-300"
-                      : "bg-rose-950/20 border-rose-500/30 text-rose-300"
+                <div className="divide-y divide-border/30">
+                  {diagnostics.length === 0 && !isDiagnosing ? (
+                    <p className="py-8 text-xs text-muted-foreground">
+                      Klik tombol &quot;Periksa Ulang&quot; untuk menjalankan diagnostik kesehatan layanan.
+                    </p>
+                  ) : (
+                    diagnostics.map((diag) => {
+                      const isHealthy = diag.status === "operational";
+                      return (
+                        <div
+                          key={diag.name}
+                          className="py-3.5 flex items-center justify-between gap-4"
+                        >
+                          <div className="space-y-0.5">
+                            <p className="text-sm font-normal text-foreground">{diag.name}</p>
+                            <p className="text-xs text-muted-foreground leading-normal">{diag.detail}</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span
+                              className={cn(
+                                "size-1.5 rounded-full",
+                                isHealthy ? "bg-muted-foreground" : "bg-destructive"
+                              )}
+                            />
+                            <span className="text-xs text-muted-foreground font-normal">
+                              {isHealthy ? "Normal" : "Kendala"}
+                              {diag.latencyMs !== undefined ? ` · ${diag.latencyMs} ms` : ""}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
-                >
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="flex items-center gap-1.5">
-                      {testResponse.success ? (
-                        <CheckCircle2Icon className="size-3 text-emerald-400" />
-                      ) : (
-                        <AlertCircleIcon className="size-3 text-rose-400" />
-                      )}
-                      <span>{testResponse.success ? `Response [${model}]` : "Probe Failed"}</span>
-                    </span>
-                    {testResponse.latencyMs !== undefined && (
-                      <span className="text-zinc-500 tabular-nums">
-                        {testResponse.latencyMs}ms
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="p-2 rounded bg-black border border-zinc-800/80 text-[11px] leading-relaxed whitespace-pre-wrap select-text max-h-48 overflow-y-auto">
-                    {testResponse.success ? testResponse.reply : testResponse.error}
-                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </div>
+            )}
+          </main>
         </div>
       </div>
     </div>
