@@ -40,6 +40,7 @@ let highlighter: Promise<HighlighterCore> | undefined
 function getHighlighter() {
   highlighter ??= createHighlighterCore({
     themes: [
+      import("shiki/themes/dracula-soft.mjs"),
       import("shiki/themes/github-light.mjs"),
       import("shiki/themes/github-dark.mjs"),
     ],
@@ -86,7 +87,7 @@ export async function loadHighlighter(language: string) {
       const tokenize = (text: string) =>
         shiki.codeToTokens(text, {
           lang,
-          themes: { light: "github-light", dark: "github-dark" },
+          themes: { light: "github-light", dark: "dracula-soft" },
           defaultColor: false,
           grammarState: state,
         }).tokens
@@ -100,18 +101,22 @@ export async function loadHighlighter(language: string) {
 
       return {
         lines: tokens.map((line) =>
-          line.map((token, index) => (
-            <span
-              key={index}
-              style={token.htmlStyle as React.CSSProperties}
-              className="text-(--shiki-light) dark:text-(--shiki-dark)"
-            >
-              {token.content}
-            </span>
-          ))
+          line.map((token, index) => {
+            const style = token.htmlStyle as Record<string, string> | undefined;
+            const tokenColor = style?.["--shiki-dark"] || style?.color;
+            return (
+              <span
+                key={index}
+                style={{ ...style, color: tokenColor } as React.CSSProperties}
+                className="text-(--shiki-light) dark:text-(--shiki-dark)"
+              >
+                {token.content}
+              </span>
+            );
+          })
         ),
         state: shiki.getLastGrammarState(tokens),
-      }
+      };
     },
   }
 }

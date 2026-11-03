@@ -18,7 +18,6 @@ import {
   LayersIcon,
   WrenchIcon,
   CheckIcon,
-  CheckCircle2Icon,
   CopyIcon,
   Maximize2Icon,
   AlertCircleIcon,
@@ -30,6 +29,8 @@ import {
   XIcon,
   ArrowRightLeftIcon,
   ClockIcon,
+  BrainIcon,
+  GlobeIcon,
 } from "lucide-react";
 import {
   Trace,
@@ -46,10 +47,9 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { SeedAvatar } from "@/components/seed-avatar";
+import { HighlightedCode } from "@/components/ui/highlighted-code";
 import { cn } from "@/lib/utils";
 
 export interface ToolPartPayload {
@@ -85,7 +85,13 @@ export function getToolName(part: ToolPartPayload): string {
   return part.toolName || "";
 }
 
-function CopyButton({ text }: { text: string }) {
+function CopyButton({
+  text,
+  showLabel = false,
+}: {
+  text: string;
+  showLabel?: boolean;
+}) {
   const [copied, setCopied] = React.useState(false);
 
   const handleCopy = async () => {
@@ -102,7 +108,12 @@ function CopyButton({ text }: { text: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="p-1 rounded-md text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors cursor-pointer"
+      className={cn(
+        "transition-colors cursor-pointer select-none flex items-center gap-1.5",
+        showLabel
+          ? "px-2.5 py-1 rounded-lg text-xs font-sans text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/70"
+          : "p-1 rounded-md text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60"
+      )}
       title={copied ? "Tersalin" : "Salin ke clipboard"}
     >
       {copied ? (
@@ -110,6 +121,7 @@ function CopyButton({ text }: { text: string }) {
       ) : (
         <CopyIcon className="size-3.5" />
       )}
+      {showLabel && <span>{copied ? "Tersalin" : "Salin"}</span>}
     </button>
   );
 }
@@ -136,70 +148,59 @@ function BashToolView({
   state: string;
 }) {
   const isRunning = state === "input-streaming" || state === "input-available";
-  const hasError = state === "output-error" || (output && output.exitCode !== 0);
   const command = input?.command || "bash";
   const stdout = output?.stdout || "";
-  const shouldAutoOpen = hasError || Boolean(stdout);
-  const [userToggled, setUserToggled] = React.useState<boolean | null>(null);
-  const isOpen = userToggled ?? shouldAutoOpen;
+  const fullTextToCopy = stdout ? `${command}\n\n${stdout}` : command;
 
   return (
-    <Trace className="my-1.5 w-full">
-      <TraceCollapsible open={isOpen} onOpenChange={setUserToggled}>
-        <TraceCollapsibleTrigger>
-          <TraceLine status={isRunning ? "running" : hasError ? "error" : undefined}>
-            <TraceIcon>
-              {isRunning ? (
-                <Loader2Icon className="size-4 animate-spin text-zinc-400" />
-              ) : hasError ? (
-                <AlertCircleIcon className="size-4 text-rose-400" />
-              ) : (
-                <TerminalIcon className="size-4 text-zinc-400" />
-              )}
-            </TraceIcon>
-            <TraceTitle className="font-mono text-xs text-zinc-200 font-normal truncate">
-              $ {command.length > 55 ? `${command.slice(0, 52)}...` : command}
-            </TraceTitle>
-            {output?.exitCode !== undefined && output.exitCode !== 0 && (
-              <TraceDescription className="text-[11px] font-mono text-rose-400">
-                exit {output.exitCode}
-              </TraceDescription>
-            )}
-          </TraceLine>
-        </TraceCollapsibleTrigger>
-        <TraceCollapsibleContent className="mt-1.5 space-y-2">
+    <div className="my-3 w-full rounded-2xl overflow-hidden bg-[#121316] border border-zinc-800/40 shadow-xs select-text">
+      {/* Editor Header Bar (Gemini / ChatGPT Style) */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-[#1a1b1e] border-b border-zinc-800/40 select-none">
+        <div className="flex items-center gap-2 text-xs font-mono text-zinc-300 min-w-0">
+          <TerminalIcon className="size-3.5 text-zinc-400 shrink-0" />
+          <span className="font-semibold">bash</span>
           {input?.cwd && (
-            <div className="text-[11px] text-zinc-500 font-mono flex items-center gap-1.5 px-1">
-              <span>cwd:</span>
-              <span className="text-zinc-400 truncate">{input.cwd}</span>
-            </div>
+            <span className="text-zinc-500 font-sans text-[11px] truncate max-w-xs">
+              ({input.cwd})
+            </span>
           )}
-          <div className="rounded-xl bg-[#08080a] border border-zinc-800/90 p-3 font-mono text-xs overflow-hidden shadow-inner">
-            <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-zinc-800/60 text-[11px] font-mono text-zinc-500 select-none">
-              <span className="flex items-center gap-1.5 text-zinc-400">
-                <TerminalIcon className="size-3 text-zinc-500" />
-                bash
-              </span>
-              <CopyButton text={stdout || command} />
-            </div>
-            <div className="text-zinc-200 select-all font-mono text-xs">
-              <span className="text-zinc-500 mr-2 select-none">$</span>
-              {command}
-            </div>
-            {stdout && (
-              <pre className="mt-2 text-zinc-300 whitespace-pre-wrap select-text max-h-64 overflow-y-auto leading-relaxed scrollbar-thin">
-                {stdout}
-              </pre>
-            )}
-            {output?.error && (
-              <div className="mt-2 text-rose-400 text-xs select-text border-t border-rose-950/50 pt-1.5">
-                {output.error}
-              </div>
-            )}
+          {isRunning && (
+            <span className="flex items-center gap-1 text-[11px] text-zinc-400 font-sans ml-1.5">
+              <Loader2Icon className="size-3 animate-spin text-zinc-400" />
+              berjalan...
+            </span>
+          )}
+          {output?.exitCode !== undefined && output.exitCode !== 0 && (
+            <span className="text-[11px] text-rose-400 font-mono ml-1.5">
+              exit {output.exitCode}
+            </span>
+          )}
+        </div>
+        <CopyButton text={fullTextToCopy} showLabel />
+      </div>
+
+      {/* Editor Content Surface (Dracula Soft VSCode Palette) */}
+      <div className="p-4 font-mono text-xs sm:text-[13px] leading-relaxed overflow-x-auto text-[#f8f8f2] bg-[#121316]">
+        <div className="flex items-start gap-2">
+          <span className="text-[#bd93f9] select-none font-semibold">$</span>
+          <div className="break-all flex-1 min-w-0">
+            <HighlightedCode code={command} language="bash" />
           </div>
-        </TraceCollapsibleContent>
-      </TraceCollapsible>
-    </Trace>
+        </div>
+
+        {stdout && (
+          <pre className="mt-3 pt-3 border-t border-zinc-800/40 text-[#f8f8f2]/90 font-mono text-xs sm:text-[13px] whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto select-text scrollbar-thin">
+            <HighlightedCode code={stdout} language="ansi" />
+          </pre>
+        )}
+
+        {output?.error && (
+          <div className="mt-3 pt-3 border-t border-rose-950/40 text-[#ff5555] font-mono text-xs sm:text-[13px] leading-relaxed whitespace-pre-wrap select-text">
+            {output.error}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -645,6 +646,282 @@ interface ShowScreenOutput {
   error?: string;
 }
 
+interface ScreenshotViewerDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  screenshot: string;
+  caption?: string;
+  timestamp?: string | number | Date;
+  badge?: string;
+}
+
+function ScreenshotViewerModalContent({
+  onClose,
+  screenshot,
+  caption = "Tangkapan Layar",
+  timestamp,
+  badge,
+}: {
+  onClose: () => void;
+  screenshot: string;
+  caption?: string;
+  timestamp?: string | number | Date;
+  badge?: string;
+}) {
+  const [zoom, setZoom] = React.useState(1);
+  const [pan, setPan] = React.useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = React.useState(false);
+  const dragStartRef = React.useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+
+  const handleZoomIn = () => {
+    setZoom((prev) => Math.min(3, +(prev + 0.25).toFixed(2)));
+  };
+
+  const handleZoomOut = () => {
+    setZoom((prev) => {
+      const next = Math.max(0.5, +(prev - 0.25).toFixed(2));
+      if (next <= 1) setPan({ x: 0, y: 0 });
+      return next;
+    });
+  };
+
+  const handleResetZoom = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
+
+  const handleDoubleClick = () => {
+    if (zoom !== 1) {
+      handleResetZoom();
+    } else {
+      setZoom(1.75);
+    }
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    if (e.deltaY < 0) {
+      handleZoomIn();
+    } else {
+      handleZoomOut();
+    }
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (zoom <= 1) return;
+    setIsDragging(true);
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      panX: pan.x,
+      panY: pan.y,
+    };
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || zoom <= 1) return;
+    const dx = e.clientX - dragStartRef.current.x;
+    const dy = e.clientY - dragStartRef.current.y;
+    setPan({
+      x: dragStartRef.current.panX + dx,
+      y: dragStartRef.current.panY + dy,
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleDownload = () => {
+    if (!screenshot) return;
+    const link = document.createElement("a");
+    link.href = screenshot.startsWith("data:")
+      ? screenshot
+      : `data:image/png;base64,${screenshot}`;
+    link.download = `${caption.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "screenshot"}-${Date.now()}.png`;
+    link.click();
+  };
+
+  const imgSrc = screenshot.startsWith("data:")
+    ? screenshot
+    : `data:image/png;base64,${screenshot}`;
+
+  return (
+    <DialogContent
+      showCloseButton={false}
+      className="w-[96vw] sm:max-w-[95vw] md:max-w-6xl h-[88vh] max-h-[88vh] p-0 gap-0 bg-[#0c0d10] border border-zinc-800/80 text-zinc-100 overflow-hidden flex flex-col rounded-2xl shadow-2xl outline-none"
+    >
+      {/* Header Bar */}
+      <div className="h-13 px-4 sm:px-5 border-b border-zinc-800/70 bg-[#121316]/90 backdrop-blur-md flex items-center justify-between shrink-0 select-none">
+        <DialogHeader className="p-0 gap-0 min-w-0">
+          <DialogTitle className="text-xs sm:text-[13px] font-sans font-medium text-zinc-200 flex items-center gap-2.5 truncate">
+            <div className="size-6 rounded-lg bg-zinc-800/80 border border-zinc-700/60 flex items-center justify-center shrink-0 text-zinc-400">
+              <MonitorIcon className="size-3.5" />
+            </div>
+            <span className="truncate">{caption}</span>
+            {badge && (
+              <span className="px-2 py-0.5 rounded-full bg-zinc-800/90 text-[11px] font-mono text-zinc-300 border border-zinc-700/50 shrink-0">
+                {badge}
+              </span>
+            )}
+            {timestamp && (
+              <span className="text-zinc-500 font-normal text-xs hidden sm:inline-block shrink-0">
+                • {new Date(timestamp).toLocaleTimeString()}
+              </span>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Segmented Zoom Capsule */}
+          <div className="flex items-center gap-0.5 bg-zinc-900/90 border border-zinc-800/80 rounded-xl p-1 shadow-xs">
+            <button
+              type="button"
+              onClick={handleZoomOut}
+              disabled={zoom <= 0.5}
+              className="size-7 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/80 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Perkecil zoom"
+              aria-label="Perkecil"
+            >
+              <ZoomOutIcon className="size-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={handleResetZoom}
+              className="px-2 py-0.5 text-xs font-mono font-medium text-zinc-300 hover:text-white hover:bg-zinc-800/80 rounded-md cursor-pointer transition-colors"
+              title="Reset zoom ke 100%"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+
+            <button
+              type="button"
+              onClick={handleZoomIn}
+              disabled={zoom >= 3}
+              className="size-7 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/80 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Perbesar zoom"
+              aria-label="Perbesar"
+            >
+              <ZoomInIcon className="size-3.5" />
+            </button>
+
+            {zoom !== 1 && (
+              <button
+                type="button"
+                onClick={handleResetZoom}
+                className="size-7 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/80 flex items-center justify-center transition-colors cursor-pointer ml-0.5"
+                title="Kembali ke ukuran normal (100%)"
+                aria-label="Reset Zoom"
+              >
+                <RotateCcwIcon className="size-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Download Button */}
+          <button
+            type="button"
+            onClick={handleDownload}
+            className="size-8 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800/80 border border-zinc-800/70 flex items-center justify-center transition-colors cursor-pointer"
+            title="Unduh tangkapan layar"
+            aria-label="Unduh"
+          >
+            <DownloadIcon className="size-3.5" />
+          </button>
+
+          {/* Close Button */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="size-8 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800/80 border border-zinc-800/70 flex items-center justify-center transition-colors cursor-pointer ml-0.5"
+            title="Tutup pratinjau"
+            aria-label="Tutup"
+          >
+            <XIcon className="size-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Immersive Viewport Canvas */}
+      <div
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        className={cn(
+          "flex-1 w-full h-full min-h-0 bg-[#07080a] flex items-center justify-center p-4 sm:p-6 relative select-none overflow-hidden",
+          zoom > 1
+            ? isDragging
+              ? "cursor-grabbing"
+              : "cursor-grab"
+            : "cursor-zoom-in"
+        )}
+      >
+        <div
+          onDoubleClick={handleDoubleClick}
+          style={{
+            transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
+            transformOrigin: "center center",
+            transition: isDragging ? "none" : "transform 0.15s ease-out",
+          }}
+          className="relative max-w-full max-h-full flex items-center justify-center pointer-events-auto"
+          title={
+            zoom === 1
+              ? "Klik ganda untuk memperbesar (175%)"
+              : "Klik ganda untuk reset normal (100%)"
+          }
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imgSrc}
+            alt={caption}
+            className="max-w-full max-h-[calc(88vh-5.5rem)] object-contain rounded-xl shadow-2xl border border-zinc-800/60 pointer-events-none"
+            draggable={false}
+          />
+        </div>
+
+        {/* Quick Shortcuts Pill */}
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3.5 py-1.5 rounded-full bg-zinc-900/85 backdrop-blur-md border border-zinc-800/80 text-[11px] font-sans text-zinc-400 select-none pointer-events-none shadow-lg flex items-center gap-2">
+          <span>Klik ganda untuk perbesar</span>
+          <span className="text-zinc-600">•</span>
+          <span>Scroll untuk zoom</span>
+          {zoom > 1 && (
+            <>
+              <span className="text-zinc-600">•</span>
+              <span>Tarik untuk geser</span>
+            </>
+          )}
+        </div>
+      </div>
+    </DialogContent>
+  );
+}
+
+function ScreenshotViewerDialog({
+  open,
+  onOpenChange,
+  screenshot,
+  caption = "Tangkapan Layar",
+  timestamp,
+  badge,
+}: ScreenshotViewerDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {open && (
+        <ScreenshotViewerModalContent
+          onClose={() => onOpenChange(false)}
+          screenshot={screenshot}
+          caption={caption}
+          timestamp={timestamp}
+          badge={badge}
+        />
+      )}
+    </Dialog>
+  );
+}
+
 /**
  * ShowScreenToolView:
  * Renders the full screenshot card with preview and zoom dialog.
@@ -661,236 +938,72 @@ function ShowScreenToolView({
   state: string;
 }) {
   const [isOpen, setIsOpen] = React.useState(false);
-  const [zoom, setZoom] = React.useState(1);
   const isRunning = state === "input-streaming" || state === "input-available";
   const caption = output?.caption || input?.caption || "Sandbox Desktop Screen";
   const screenshot = output?.screenshot;
 
-  const closeDialog = () => {
-    setIsOpen(false);
-    setZoom(1);
-  };
-
-  const handleOpenChange = (next: boolean) => {
-    setIsOpen(next);
-    if (!next) {
-      setZoom(1);
-    }
-  };
-
-  const handleZoomIn = () => {
-    setZoom((prev) => Math.min(3, +(prev + 0.25).toFixed(2)));
-  };
-
-  const handleZoomOut = () => {
-    setZoom((prev) => Math.max(0.5, +(prev - 0.25).toFixed(2)));
-  };
-
-  const handleResetZoom = () => {
-    setZoom(1);
-  };
-
-  const handleDoubleClick = () => {
-    setZoom((prev) => (prev === 1 ? 1.75 : 1));
-  };
-
-  const handleWheel = (e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      if (e.deltaY < 0) {
-        handleZoomIn();
-      } else {
-        handleZoomOut();
-      }
-    }
-  };
-
   const handleDownload = () => {
     if (!screenshot) return;
     const link = document.createElement("a");
-    link.href = `data:image/png;base64,${screenshot}`;
+    link.href = screenshot.startsWith("data:")
+      ? screenshot
+      : `data:image/png;base64,${screenshot}`;
     link.download = `${caption.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "screenshot"}-${Date.now()}.png`;
     link.click();
   };
 
   return (
-    <div className="my-2.5 w-full max-w-xl space-y-1.5">
-      <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400 px-0.5 select-none">
-        <span className="truncate">{caption}</span>
-        {isRunning ? (
-          <span className="flex items-center gap-1.5 text-zinc-400 font-mono shrink-0">
-            <Loader2Icon className="size-3 animate-spin" />
-            capturing...
-          </span>
-        ) : (
-          <div className="flex items-center gap-2 shrink-0">
-            {output?.timestamp && (
-              <span className="text-zinc-500">
-                {new Date(output.timestamp).toLocaleTimeString()}
-              </span>
-            )}
-            {screenshot && (
-              <button
-                type="button"
-                onClick={handleDownload}
-                className="size-5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 flex items-center justify-center transition-colors cursor-pointer"
-                title="Unduh tangkapan layar"
-              >
-                <DownloadIcon className="size-3" />
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
+    <div className="my-3 w-fit max-w-full">
       {screenshot ? (
-        <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-          <DialogTrigger className="group relative cursor-zoom-in overflow-hidden rounded-lg border border-zinc-800 bg-black aspect-video flex items-center justify-center w-full hover:border-zinc-700 transition-colors">
+        <>
+          <div
+            onClick={() => setIsOpen(true)}
+            className="group relative cursor-zoom-in block overflow-hidden rounded-2xl bg-zinc-950/50 border border-zinc-800/40 hover:border-zinc-700/80 transition-all shadow-sm"
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={`data:image/png;base64,${screenshot}`}
+              src={
+                screenshot.startsWith("data:")
+                  ? screenshot
+                  : `data:image/png;base64,${screenshot}`
+              }
               alt={caption}
-              className="w-full h-full object-contain"
+              className="max-h-[360px] sm:max-h-[420px] w-auto max-w-full object-contain rounded-2xl block"
             />
-            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md bg-zinc-950/80 border border-zinc-800 text-zinc-400">
-              <Maximize2Icon className="size-3.5" />
-            </div>
-          </DialogTrigger>
-          <DialogContent
-            showCloseButton={false}
-            className="w-[96vw] sm:max-w-[95vw] md:max-w-6xl h-[88vh] max-h-[88vh] p-0 gap-0 bg-zinc-950 border border-zinc-800 text-zinc-100 overflow-hidden flex flex-col rounded-xl shadow-2xl"
-          >
-            {/* Header with Title and Zoom / Download / Close controls */}
-            <div className="h-12 px-4 border-b border-zinc-800 bg-zinc-900/40 flex items-center justify-between shrink-0 select-none">
-              <DialogHeader className="p-0 gap-0">
-                <DialogTitle className="text-xs font-mono text-zinc-300 flex items-center gap-2">
-                  <MonitorIcon className="size-3.5 text-zinc-400" />
-                  <span>{caption}</span>
-                  {output?.timestamp && (
-                    <span className="text-zinc-500 font-normal hidden sm:inline-block">
-                      • {new Date(output.timestamp).toLocaleTimeString()}
-                    </span>
-                  )}
-                </DialogTitle>
-              </DialogHeader>
-
-              <div className="flex items-center gap-1.5">
-                {/* Zoom Controls */}
-                <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-0.5">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={handleZoomOut}
-                    disabled={zoom <= 0.5}
-                    className="size-7 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 cursor-pointer disabled:opacity-30"
-                    title="Perkecil zoom"
-                    aria-label="Perkecil"
-                  >
-                    <ZoomOutIcon className="size-3.5" />
-                  </Button>
-
-                  <button
-                    type="button"
-                    onClick={handleResetZoom}
-                    className="px-2 py-0.5 text-xs font-mono font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 rounded cursor-pointer transition-colors"
-                    title="Klik untuk reset zoom ke 100%"
-                  >
-                    {Math.round(zoom * 100)}%
-                  </button>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={handleZoomIn}
-                    disabled={zoom >= 3}
-                    className="size-7 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 cursor-pointer disabled:opacity-30"
-                    title="Perbesar zoom"
-                    aria-label="Perbesar"
-                  >
-                    <ZoomInIcon className="size-3.5" />
-                  </Button>
-
-                  {zoom !== 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={handleResetZoom}
-                      className="size-7 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 cursor-pointer ml-0.5"
-                      title="Reset Zoom ke 100%"
-                      aria-label="Reset Zoom"
-                    >
-                      <RotateCcwIcon className="size-3" />
-                    </Button>
-                  )}
-                </div>
-
-                {/* Download screenshot */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={handleDownload}
-                  className="size-8 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 cursor-pointer"
-                  title="Unduh tangkapan layar"
-                  aria-label="Unduh"
-                >
-                  <DownloadIcon className="size-4" />
-                </Button>
-
-                {/* Close dialog */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={closeDialog}
-                  className="size-8 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 cursor-pointer ml-1"
-                  title="Tutup pratinjau"
-                  aria-label="Tutup"
-                >
-                  <XIcon className="size-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Immersive Viewport with Zoom and Scroll Pan */}
-            <div
-              onWheel={handleWheel}
-              className="flex-1 w-full h-full min-h-0 overflow-auto bg-[#050505] flex items-center justify-center p-4 relative select-none"
-            >
-              <div
-                onDoubleClick={handleDoubleClick}
-                style={{
-                  transform: `scale(${zoom})`,
-                  transformOrigin: "center center",
-                  transition: "transform 0.15s ease-out",
+            {/* Minimalist floating action buttons on hover */}
+            <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 p-1 rounded-xl bg-zinc-950/80 backdrop-blur-xs border border-zinc-800/80 shadow-md">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDownload();
                 }}
-                className={cn(
-                  "relative max-w-full max-h-full flex items-center justify-center transition-transform",
-                  zoom > 1 ? "cursor-zoom-out" : "cursor-zoom-in"
-                )}
-                title={zoom === 1 ? "Klik ganda untuk memperbesar" : "Klik ganda untuk reset 100%"}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors cursor-pointer"
+                title="Unduh tangkapan layar"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`data:image/png;base64,${screenshot}`}
-                  alt={caption}
-                  className="max-w-full max-h-[calc(88vh-5.5rem)] object-contain rounded-lg shadow-2xl border border-zinc-800/80 pointer-events-none"
-                  draggable={false}
-                />
+                <DownloadIcon className="size-3.5" />
+              </button>
+              <div className="p-1.5 text-zinc-400">
+                <Maximize2Icon className="size-3.5" />
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+
+          <ScreenshotViewerDialog
+            open={isOpen}
+            onOpenChange={setIsOpen}
+            screenshot={screenshot}
+            caption={caption}
+            timestamp={output?.timestamp}
+          />
+        </>
       ) : isRunning ? (
-        <div className="aspect-video w-full rounded-lg bg-zinc-900/40 border border-zinc-800 flex flex-col items-center justify-center text-xs text-zinc-500 gap-2">
-          <Loader2Icon className="size-4 animate-spin text-zinc-500" />
+        <div className="flex items-center gap-2 py-2 px-3 rounded-xl bg-zinc-900/40 text-xs font-mono text-zinc-400 w-fit">
+          <Loader2Icon className="size-3.5 animate-spin text-zinc-400" />
           <span>Mengambil tangkapan layar...</span>
         </div>
       ) : output?.error ? (
-        <div className="rounded-lg bg-rose-950/20 border border-rose-800/40 p-2.5 text-xs text-rose-400 font-mono">
+        <div className="rounded-xl bg-rose-950/20 border border-rose-800/40 p-3 text-xs text-rose-400 font-mono">
           error: {output.error}
         </div>
       ) : null}
@@ -1094,9 +1207,11 @@ function GenericToolView({
 }
 
 interface FileSystemUnifiedInput {
-  action?: "read" | "write" | "list";
+  action?: "read" | "write" | "edit" | "list";
   path?: string;
   content?: string;
+  oldContent?: string;
+  newContent?: string;
   maxDepth?: number;
 }
 
@@ -1124,8 +1239,17 @@ function FileSystemUnifiedToolView({
   const hasError = state === "output-error" || (output && output.success === false);
   const action = (output?.action || input?.action || "read").toLowerCase();
   const path = output?.path || input?.path || "workspace";
-  const actionLabel = action === "write" ? "WRITE" : action === "list" ? "LIST" : "READ";
-  const [isOpen, setIsOpen] = React.useState(hasError || Boolean(output?.content));
+  const actionLabel =
+    action === "write"
+      ? "WRITE"
+      : action === "edit"
+      ? "EDIT"
+      : action === "list"
+      ? "LIST"
+      : "READ";
+  const [isOpen, setIsOpen] = React.useState(
+    hasError || Boolean(output?.content) || Boolean(input?.oldContent)
+  );
 
   return (
     <Trace className="my-1 w-full">
@@ -1137,7 +1261,7 @@ function FileSystemUnifiedToolView({
                 <Loader2Icon className="size-4 animate-spin text-zinc-400" />
               ) : hasError ? (
                 <AlertCircleIcon className="size-3.5 text-rose-400" />
-              ) : action === "write" ? (
+              ) : action === "write" || action === "edit" ? (
                 <FileEditIcon className="size-3.5 text-zinc-300" />
               ) : action === "list" ? (
                 <FolderTreeIcon className="size-3.5 text-zinc-300" />
@@ -1168,7 +1292,38 @@ function FileSystemUnifiedToolView({
               <span className="truncate">{path}</span>
               {output?.content && <CopyButton text={output.content} />}
             </div>
-            {output?.content ? (
+            {action === "edit" || input?.oldContent || input?.newContent ? (
+              <div className="space-y-2 text-xs">
+                {input?.oldContent && (
+                  <div>
+                    <span className="text-[10px] text-rose-400 font-semibold uppercase tracking-wider block mb-0.5">
+                      - Target Span (Replaced):
+                    </span>
+                    <pre className="text-rose-300/90 bg-rose-950/20 p-2 rounded-lg border border-rose-900/30 whitespace-pre-wrap select-text max-h-36 overflow-y-auto leading-relaxed">
+                      {input.oldContent}
+                    </pre>
+                  </div>
+                )}
+                {input?.newContent && (
+                  <div>
+                    <span className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider block mb-0.5">
+                      + Replacement Span:
+                    </span>
+                    <pre className="text-emerald-300/90 bg-emerald-950/20 p-2 rounded-lg border border-emerald-900/30 whitespace-pre-wrap select-text max-h-36 overflow-y-auto leading-relaxed">
+                      {input.newContent}
+                    </pre>
+                  </div>
+                )}
+                {output?.error && (
+                  <div className="text-rose-400 text-xs mt-1">{output.error}</div>
+                )}
+                {output?.success && (
+                  <div className="text-zinc-400 italic text-[11px] mt-1">
+                    File patched surgically.
+                  </div>
+                )}
+              </div>
+            ) : output?.content ? (
               <pre className="text-zinc-300 whitespace-pre-wrap select-text max-h-60 overflow-y-auto leading-relaxed">
                 {output.content}
               </pre>
@@ -1199,6 +1354,175 @@ function FileSystemUnifiedToolView({
                 {isRunning ? "Executing filesystem operation..." : "Done."}
               </div>
             )}
+          </div>
+        </TraceCollapsibleContent>
+      </TraceCollapsible>
+    </Trace>
+  );
+}
+
+interface SaveMemoryInput {
+  category?: "user_profile" | "architecture" | "task_directive" | "learned_playbook";
+  title?: string;
+  content?: string;
+}
+
+interface SaveMemoryOutput {
+  success?: boolean;
+  category?: string;
+  title?: string;
+  message?: string;
+  error?: string;
+}
+
+function SaveMemoryToolView({
+  input,
+  output,
+  state,
+}: {
+  input?: SaveMemoryInput;
+  output?: SaveMemoryOutput;
+  state: string;
+}) {
+  const isRunning = state === "input-streaming" || state === "input-available";
+  const hasError = state === "output-error" || (output && output.success === false);
+  const category = output?.category || input?.category || "learned_playbook";
+  const title = output?.title || input?.title || "Knowledge";
+  const content = input?.content || output?.message;
+  const [isOpen, setIsOpen] = React.useState(hasError || Boolean(content));
+
+  const categoryLabels: Record<string, string> = {
+    user_profile: "USER PROFILE",
+    architecture: "ARCHITECTURE",
+    task_directive: "DIRECTIVE",
+    learned_playbook: "PLAYBOOK",
+  };
+
+  return (
+    <Trace className="my-1 w-full">
+      <TraceCollapsible open={isOpen} onOpenChange={setIsOpen}>
+        <TraceCollapsibleTrigger>
+          <TraceLine status={isRunning ? "running" : hasError ? "error" : undefined}>
+            <TraceIcon>
+              {isRunning ? (
+                <Loader2Icon className="size-4 animate-spin text-zinc-400" />
+              ) : hasError ? (
+                <AlertCircleIcon className="size-3.5 text-rose-400" />
+              ) : (
+                <BrainIcon className="size-3.5 text-violet-400" />
+              )}
+            </TraceIcon>
+            <TraceTitle className="font-mono text-xs sm:text-sm text-zinc-100 font-medium">
+              <span className="text-zinc-400 font-semibold mr-1.5">save_memory</span>
+              <span className="px-2 py-0.5 rounded bg-violet-950/60 border border-violet-800/40 text-[11px] text-violet-300 font-mono mr-1.5">
+                {categoryLabels[category] || "LEARNED"}
+              </span>
+              <span className="text-zinc-200">{title}</span>
+            </TraceTitle>
+          </TraceLine>
+        </TraceCollapsibleTrigger>
+        <TraceCollapsibleContent className="mt-1.5">
+          <div className="rounded-xl bg-[#08080a] border border-zinc-800/90 p-3 font-mono text-xs overflow-hidden shadow-inner">
+            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-zinc-800/80 text-xs text-zinc-400">
+              <span className="truncate">MEMORY.md &bull; {title}</span>
+              {content && <CopyButton text={content} />}
+            </div>
+            {hasError ? (
+              <p className="text-rose-400">{output?.error || "Failed to record memory."}</p>
+            ) : content ? (
+              <pre className="text-zinc-300 whitespace-pre-wrap select-text max-h-60 overflow-y-auto leading-relaxed">
+                {content}
+              </pre>
+            ) : (
+              <p className="text-zinc-500 italic">Saved to persistent memory buffer.</p>
+            )}
+          </div>
+        </TraceCollapsibleContent>
+      </TraceCollapsible>
+    </Trace>
+  );
+}
+
+interface FetchUrlInput {
+  url?: string;
+  format?: string;
+  maxLength?: number;
+}
+
+interface FetchUrlOutput {
+  success?: boolean;
+  status?: number;
+  statusText?: string;
+  url?: string;
+  contentType?: string;
+  length?: number;
+  truncated?: boolean;
+  content?: string;
+  error?: string;
+}
+
+function FetchUrlToolView({
+  input,
+  output,
+  state,
+}: {
+  input?: FetchUrlInput;
+  output?: FetchUrlOutput;
+  state: string;
+}) {
+  const isRunning = state === "input-streaming" || state === "input-available";
+  const hasError = state === "output-error" || (output && output.success === false);
+  const url = output?.url || input?.url || "https://...";
+  const [isOpen, setIsOpen] = React.useState(hasError || Boolean(output?.content));
+
+  let hostname = url;
+  try {
+    hostname = new URL(url).hostname;
+  } catch {}
+
+  return (
+    <Trace className="my-1 w-full">
+      <TraceCollapsible open={isOpen} onOpenChange={setIsOpen}>
+        <TraceCollapsibleTrigger>
+          <TraceLine status={isRunning ? "running" : hasError ? "error" : undefined}>
+            <TraceIcon>
+              {isRunning ? (
+                <Loader2Icon className="size-4 animate-spin text-zinc-400" />
+              ) : hasError ? (
+                <AlertCircleIcon className="size-3.5 text-rose-400" />
+              ) : (
+                <GlobeIcon className="size-3.5 text-cyan-400" />
+              )}
+            </TraceIcon>
+            <TraceTitle className="font-mono text-xs sm:text-sm text-zinc-100 font-medium">
+              <span className="text-zinc-400 font-semibold mr-1.5">fetch_url</span>
+              <span className="text-zinc-200 truncate max-w-xs">{hostname}</span>
+            </TraceTitle>
+            {output?.status !== undefined && (
+              <TraceDescription className="text-xs font-mono">
+                HTTP {output.status}
+              </TraceDescription>
+            )}
+            {output?.length !== undefined && (
+              <TraceDescription className="text-xs font-mono">
+                {output.length} chars
+              </TraceDescription>
+            )}
+          </TraceLine>
+        </TraceCollapsibleTrigger>
+        <TraceCollapsibleContent className="mt-1.5">
+          <div className="rounded-xl bg-[#08080a] border border-zinc-800/90 p-3 font-mono text-xs overflow-hidden shadow-inner">
+            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-zinc-800/80 text-xs text-zinc-400">
+              <span className="truncate">{url}</span>
+              {output?.content && <CopyButton text={output.content} />}
+            </div>
+            {hasError ? (
+              <p className="text-rose-400">{output?.error || "Failed to fetch URL."}</p>
+            ) : output?.content ? (
+              <pre className="text-zinc-300 whitespace-pre-wrap select-text max-h-60 overflow-y-auto leading-relaxed">
+                {output.content}
+              </pre>
+            ) : null}
           </div>
         </TraceCollapsibleContent>
       </TraceCollapsible>
@@ -1302,7 +1626,7 @@ function ComputerUseUnifiedToolView({
                 </div>
                 <div
                   onClick={() => setIsZoomOpen(true)}
-                  className="group relative cursor-zoom-in overflow-hidden rounded-lg border border-zinc-800 bg-black aspect-video max-w-sm flex items-center justify-center hover:border-zinc-700 transition-colors"
+                  className="group relative cursor-zoom-in overflow-hidden rounded-xl border border-zinc-800/50 bg-zinc-950/50 aspect-video max-w-sm flex items-center justify-center hover:border-zinc-700 transition-all shadow-xs"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -1315,23 +1639,13 @@ function ComputerUseUnifiedToolView({
                   </div>
                 </div>
 
-                <Dialog open={isZoomOpen} onOpenChange={setIsZoomOpen}>
-                  <DialogContent className="max-w-4xl p-0 bg-[#09090b] border border-zinc-800 text-zinc-200 rounded-2xl overflow-hidden shadow-2xl">
-                    <DialogHeader className="p-3.5 border-b border-zinc-800/80 bg-zinc-900/70">
-                      <DialogTitle className="text-xs font-mono text-zinc-200">
-                        VNC Screen Capture — {action} {x !== undefined ? `(${x}, ${y})` : ""}
-                      </DialogTitle>
-                    </DialogHeader>
-                    <div className="p-3 flex items-center justify-center bg-black">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={`data:image/png;base64,${screenshot}`}
-                        alt="Fullsize VNC Screen"
-                        className="max-h-[75vh] w-auto object-contain rounded-lg border border-zinc-800/60"
-                      />
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                <ScreenshotViewerDialog
+                  open={isZoomOpen}
+                  onOpenChange={setIsZoomOpen}
+                  screenshot={screenshot}
+                  caption="VNC Screen Action"
+                  badge={`${action}${x !== undefined && y !== undefined ? ` (${x}, ${y})` : text ? ` "${text}"` : key ? ` [${key}]` : ""}`}
+                />
               </div>
             )}
           </div>
@@ -1341,38 +1655,8 @@ function ComputerUseUnifiedToolView({
   );
 }
 
-export function FinishTaskToolView({
-  input,
-  output,
-  state,
-}: {
-  input?: { summary?: string };
-  output?: { summary?: string };
-  state: string;
-}) {
-  const isRunning = state === "input-streaming" || state === "input-available";
-  const summary =
-    output?.summary || input?.summary || "Seluruh instruksi berhasil diselesaikan.";
-
-  return (
-    <div className="w-full max-w-full min-w-0 my-2 rounded-xl bg-zinc-900/40 border border-zinc-800/80 px-3.5 py-3 text-sm">
-      <div className="flex items-start gap-2.5 min-w-0">
-        {isRunning ? (
-          <Loader2Icon className="size-4 animate-spin text-zinc-400 shrink-0 mt-0.5" />
-        ) : (
-          <CheckCircle2Icon className="size-4 text-zinc-400 shrink-0 mt-0.5" />
-        )}
-        <div className="flex-1 min-w-0">
-          <span className="text-xs font-medium text-zinc-200 block">
-            {isRunning ? "Menyelesaikan tugas..." : "Tugas selesai"}
-          </span>
-          <div className="text-xs text-zinc-400 font-sans leading-relaxed break-words whitespace-pre-wrap select-text mt-0.5">
-            {summary}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+export function FinishTaskToolView() {
+  return null;
 }
 
 export interface WaitInput {
@@ -1441,10 +1725,32 @@ export function ChatToolView({ part }: ChatToolViewProps) {
         />
       );
     case "file_system":
+    case "editFile":
+    case "patchFile":
       return (
         <FileSystemUnifiedToolView
           input={input as FileSystemUnifiedInput}
           output={output as FileSystemUnifiedOutput}
+          state={state}
+        />
+      );
+    case "save_memory":
+    case "saveMemory":
+    case "remember":
+      return (
+        <SaveMemoryToolView
+          input={input as SaveMemoryInput}
+          output={output as SaveMemoryOutput}
+          state={state}
+        />
+      );
+    case "fetch_url":
+    case "fetchUrl":
+    case "webFetch":
+      return (
+        <FetchUrlToolView
+          input={input as FetchUrlInput}
+          output={output as FetchUrlOutput}
           state={state}
         />
       );
@@ -1457,13 +1763,7 @@ export function ChatToolView({ part }: ChatToolViewProps) {
         />
       );
     case "finish_task":
-      return (
-        <FinishTaskToolView
-          input={input as { summary?: string }}
-          output={output as { summary?: string }}
-          state={state}
-        />
-      );
+      return null;
     case "handoff":
     case "handoffTool":
       return (

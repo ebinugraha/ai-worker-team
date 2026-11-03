@@ -70,6 +70,7 @@ export function useHighlightedCode(value: string, language: string) {
       return code.split("\n")
     }
 
-    return [...next.lines, highlighter.highlight(tail, next.state).lines[0]]
+    const tailLines = highlighter.highlight(tail, next.state).lines
+    return [...next.lines, ...(tailLines.length > 0 ? [tailLines[0]] : [])]
   }, [code, highlighter, next, tail])
 }

@@ -26,10 +26,10 @@ import {
   KeyboardIcon,
   CommandIcon,
   ClockIcon,
-  CheckCircle2Icon,
   PlayIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HighlightedCode } from "@/components/ui/highlighted-code";
 
 interface ChatMarkdownProps {
   content: string;
@@ -74,23 +74,7 @@ function ActionCard({
   const type = (parsed?.type || "").toUpperCase();
 
   if (type === "FINISH") {
-    return (
-      <div className="my-2 w-full rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-3.5 py-3">
-        <div className="flex items-start gap-2.5">
-          <CheckCircle2Icon className="size-4 text-zinc-400 shrink-0 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <span className="text-xs font-medium text-zinc-200 block">
-              Tugas selesai
-            </span>
-            {parsed?.reason && (
-              <p className="text-xs text-zinc-400 leading-relaxed font-sans mt-0.5 select-text">
-                {parsed.reason}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   const getBadgeStyle = () => {
@@ -340,30 +324,32 @@ export const ChatMarkdown = React.memo(function ChatMarkdown({
                 </a>
               ),
               table: ({ children }) => (
-                <div className="overflow-x-auto my-3 w-full">
-                  <table className="w-full text-left border-collapse border border-border text-xs sm:text-sm">
+                <div className="my-4 w-full overflow-x-auto rounded-2xl border border-zinc-800/40 bg-[#121316] shadow-xs select-text scrollbar-thin">
+                  <table className="w-full min-w-full text-left border-collapse text-xs sm:text-[13px]">
                     {children}
                   </table>
                 </div>
               ),
               thead: ({ children }) => (
-                <thead className="bg-muted/50 border-b border-border font-semibold">
+                <thead className="bg-[#1a1b1e] border-b border-zinc-800/50 select-none">
                   {children}
                 </thead>
               ),
               tbody: ({ children }) => (
-                <tbody className="divide-y divide-border">{children}</tbody>
+                <tbody className="divide-y divide-zinc-800/40">{children}</tbody>
               ),
               tr: ({ children }) => (
-                <tr className="hover:bg-muted/20">{children}</tr>
+                <tr className="hover:bg-zinc-800/30 transition-colors">{children}</tr>
               ),
               th: ({ children }) => (
-                <th className="p-2 font-semibold text-foreground">
+                <th className="px-4 py-3 font-medium text-zinc-200 whitespace-nowrap tracking-tight font-sans">
                   {children}
                 </th>
               ),
               td: ({ children }) => (
-                <td className="p-2 text-zinc-300">{children}</td>
+                <td className="px-4 py-3 text-zinc-300 leading-relaxed font-sans align-top">
+                  {children}
+                </td>
               ),
               code({ className, children, ...props }) {
                 const match = /language-(\w+)/.exec(className || "");
@@ -384,10 +370,13 @@ export const ChatMarkdown = React.memo(function ChatMarkdown({
                 const language = match ? match[1] : undefined;
 
                 return (
-                  <CodeBlock size="sm" className="my-2.5 not-prose w-full">
-                    <CodeBlockHeader>
-                      <CodeBlockTitle>
-                        {language ? language.toUpperCase() : "CODE"}
+                  <CodeBlock
+                    size="sm"
+                    className="my-3 not-prose w-full rounded-2xl border border-zinc-800/40 bg-[#121316] overflow-hidden shadow-xs"
+                  >
+                    <CodeBlockHeader className="bg-[#1a1b1e] border-b border-zinc-800/40 px-4 py-2.5">
+                      <CodeBlockTitle className="font-mono text-xs text-zinc-300">
+                        {language ? language.toLowerCase() : "code"}
                       </CodeBlockTitle>
                       <CodeBlockActions>
                         <CodeBlockCopyButton value={codeString} />
@@ -395,9 +384,9 @@ export const ChatMarkdown = React.memo(function ChatMarkdown({
                     </CodeBlockHeader>
                     <CodeBlockContent
                       wrap
-                      className="max-h-96 font-mono text-xs sm:text-sm leading-relaxed"
+                      className="p-4 font-mono text-xs sm:text-[13px] leading-relaxed text-[#f8f8f2]"
                     >
-                      {codeString}
+                      <HighlightedCode code={codeString} language={language || "text"} />
                     </CodeBlockContent>
                   </CodeBlock>
                 );

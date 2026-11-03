@@ -277,12 +277,12 @@ export const bashExecTool = tool({
  */
 export const fileSystemTool = tool({
   description:
-    "Direct filesystem operations in the sandbox: read file contents, write/update files, or list directory contents without opening text editors or GUI windows in VNC. Use for reading code, modifying files, creating files, or updating MEMORY.md.",
+    "Direct filesystem operations in the sandbox: read file contents, write/create files, edit existing files via targeted find-and-replace, or list directory contents without opening text editors or GUI windows in VNC. Use for reading code, modifying files, creating files, or updating MEMORY.md.",
   inputSchema: z.object({
     action: z
-      .enum(["read", "write", "list"])
+      .enum(["read", "write", "edit", "list"])
       .describe(
-        "Action: 'read' a file, 'write' a file, or 'list' a directory"
+        "Action: 'read' a file, 'write' a file (full content overwrite or create), 'edit' a file (surgical find-and-replace using oldContent and newContent), or 'list' a directory"
       ),
     path: z
       .string()
@@ -293,13 +293,25 @@ export const fileSystemTool = tool({
       .string()
       .optional()
       .describe("Full text content to write (required when action is 'write')"),
+    oldContent: z
+      .string()
+      .optional()
+      .describe(
+        "Exact existing text to find and replace (required when action is 'edit')"
+      ),
+    newContent: z
+      .string()
+      .optional()
+      .describe(
+        "New replacement text to substitute for oldContent (when action is 'edit')"
+      ),
     depth: z
       .number()
       .optional()
       .default(2)
       .describe("Directory traversal depth when action is 'list' (default: 2)"),
   }),
-  execute: async ({ action, path, content, depth }) => {
+  execute: async ({ action, path, content, oldContent, newContent, depth }) => {
     try {
       const sandbox = await resolveSandboxForChat();
       if (action === "read") {
@@ -358,6 +370,46 @@ export const fileSystemTool = tool({
           action: "write",
           path,
           bytesWritten: buffer.length,
+        };
+      } else if (action === "edit") {
+        if (typeof oldContent !== "string") {
+          return {
+            success: false,
+            action: "edit",
+            path,
+            error: "Parameter 'oldContent' is required for action 'edit'.",
+          };
+        }
+        let buffer: Buffer;
+        try {
+          buffer = await sandbox.fs.downloadFile(path);
+        } catch (dlErr) {
+          return {
+            success: false,
+            action: "edit",
+            path,
+            error: `File not found for editing at path: ${path} (${dlErr instanceof Error ? dlErr.message : String(dlErr)})`,
+          };
+        }
+        const fileText = buffer.toString("utf-8");
+        if (!fileText.includes(oldContent)) {
+          return {
+            success: false,
+            action: "edit",
+            path,
+            error:
+              "Could not find exact match for 'oldContent' in file. Call action 'read' first to verify current contents before editing.",
+          };
+        }
+        const updated = fileText.replace(oldContent, newContent ?? "");
+        const newBuf = Buffer.from(updated, "utf-8");
+        await sandbox.fs.uploadFile(newBuf, path);
+        return {
+          success: true,
+          action: "edit",
+          path,
+          bytesWritten: newBuf.length,
+          note: "File updated successfully via targeted find-and-replace.",
         };
       } else if (action === "list") {
         const targetPath = path || ".";
@@ -846,6 +898,150 @@ export const listFilesTool = tool({
   },
 });
 
+export const editFileTool = tool({
+  description:
+    "Surgically edit a file in the sandbox via targeted find-and-replace (oldContent -> newContent).",
+  inputSchema: z.object({
+    path: z.string().describe("File path to edit"),
+    oldContent: z.string().describe("Exact string to replace in the file"),
+    newContent: z.string().describe("New replacement string"),
+  }),
+  execute: async ({ path, oldContent, newContent }) => {
+    return fileSystemTool.execute(
+      { action: "edit", path, oldContent, newContent, depth: 2 },
+      {} as never
+    );
+  },
+});
+
+export const saveMemoryTool = tool({
+  description:
+    "Record a learned fact, user preference, architectural decision, bug fix playbook, or critical lesson into persistent long-term memory (MEMORY.md). Use this whenever you learn something important or solve a tricky problem so you retain it permanently across sessions.",
+  inputSchema: z.object({
+    category: z
+      .enum(["user_profile", "architecture", "task_directive", "learned_playbook"])
+      .describe("Category of the knowledge to remember"),
+    title: z.string().describe("Short descriptive title of the fact or lesson"),
+    content: z.string().describe("Markdown content detailing the knowledge, lesson, or preference"),
+  }),
+  execute: async ({ category, title, content }) => {
+    try {
+      const sandbox = await resolveSandboxForChat();
+      let existing = "";
+      try {
+        const buffer = await sandbox.fs.downloadFile("MEMORY.md");
+        existing = buffer.toString("utf-8");
+      } catch {
+        existing = "";
+      }
+
+      const categoryHeaders: Record<string, string> = {
+        user_profile: "# 🧠 User Profile & Preferences",
+        architecture: "# 🏗️ Architecture & Project Decisions",
+        task_directive: "# 📌 Active Tasks & Directives",
+        learned_playbook: "# 💡 Learned Playbooks & Knowledge Base",
+      };
+
+      const targetHeader = categoryHeaders[category] || "# 💡 Learned Playbooks & Knowledge Base";
+      const entrySnippet = `\n### ${title}\n- *Recorded*: ${new Date().toISOString().split("T")[0]}\n${content.trim()}\n`;
+
+      let updated = existing;
+      if (!updated.includes(targetHeader)) {
+        updated = `${updated.trim()}\n\n${targetHeader}\n${entrySnippet}`.trim();
+      } else {
+        const parts = updated.split(targetHeader);
+        updated = `${parts[0]}${targetHeader}${entrySnippet}${parts[1]}`;
+      }
+
+      await sandbox.fs.uploadFile(Buffer.from(updated, "utf-8"), "MEMORY.md");
+
+      return {
+        success: true,
+        category,
+        title,
+        message: `Successfully learned and stored "${title}" in MEMORY.md (${category}).`,
+      };
+    } catch (err) {
+      return {
+        success: false,
+        category,
+        title,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  },
+});
+
+export const fetchUrlTool = tool({
+  description:
+    "Fetch and extract readable text or json content from any web URL, API endpoint, or documentation site (via HTTP GET with redirect follow and 15s timeout).",
+  inputSchema: z.object({
+    url: z.string().url().describe("The HTTP or HTTPS URL to fetch"),
+    format: z
+      .enum(["text", "json", "markdown"])
+      .optional()
+      .default("text")
+      .describe("Desired output format representation"),
+    maxLength: z
+      .number()
+      .optional()
+      .default(12000)
+      .describe("Maximum characters of content to return (default: 12000)"),
+  }),
+  execute: async ({ url, format, maxLength }) => {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 AIWorkerTeam/1.0",
+          Accept:
+            format === "json"
+              ? "application/json, text/plain, */*"
+              : "text/html, application/xhtml+xml, text/plain, */*",
+        },
+      });
+      clearTimeout(timeout);
+
+      const contentType = res.headers.get("content-type") || "";
+      const rawText = await res.text();
+
+      let extracted = rawText;
+      if (contentType.includes("html") || rawText.includes("<html")) {
+        extracted = rawText
+          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+          .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+
+      const limit = maxLength ?? 12000;
+      const truncated = extracted.length > limit;
+      const content = truncated ? extracted.slice(0, limit) + "\n...[truncated]" : extracted;
+
+      return {
+        success: res.ok,
+        status: res.status,
+        statusText: res.statusText,
+        url,
+        contentType,
+        length: content.length,
+        truncated,
+        content,
+      };
+    } catch (err) {
+      return {
+        success: false,
+        url,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  },
+});
+
 export const bashTool = bashExecTool;
 
 export const mouseClickTool = tool({
@@ -958,15 +1154,25 @@ export const sandboxTools = {
   computer_use: computerUseTool,
   finish_task: finishTaskTool,
 
+  // Cognitive Learning & Web Intelligence Tools
+  save_memory: saveMemoryTool,
+  fetch_url: fetchUrlTool,
+
   // Collaboration & Presentation Tools
   handoff: handoffTool,
   showScreen: showScreenTool,
 
-  // Backwards-compatibility aliases
+  // Backwards-compatibility and intuitive aliases
   bash: bashExecTool,
   readFile: readFileTool,
   writeFile: writeFileTool,
+  editFile: editFileTool,
+  patchFile: editFileTool,
   listFiles: listFilesTool,
+  saveMemory: saveMemoryTool,
+  remember: saveMemoryTool,
+  fetchUrl: fetchUrlTool,
+  webFetch: fetchUrlTool,
   openImage: openImageTool,
   wait: waitTool,
   viewScreen: viewScreenTool,

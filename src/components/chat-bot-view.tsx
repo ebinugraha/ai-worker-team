@@ -57,7 +57,6 @@ import {
   ChevronDownIcon,
   CheckIcon,
   Loader2Icon,
-  CheckCircle2Icon,
   AlertTriangleIcon,
   UsersIcon,
 } from "lucide-react";
@@ -892,25 +891,6 @@ function ChatBotContent({
                                     </span>
                                   </div>
                                 )}
-
-                                {/* Completed action indicator when only tools were run without extra markdown text */}
-                                {!isUser &&
-                                  status !== "streaming" &&
-                                  status !== "submitted" &&
-                                  message.parts.some((p) => isToolPart(p)) &&
-                                  !message.parts.some(
-                                    (p) =>
-                                      p.type === "text" &&
-                                      p.text &&
-                                      p.text.trim().length > 0
-                                  ) && (
-                                    <div className="w-fit max-w-full px-3.5 py-1.5 text-xs sm:text-sm leading-relaxed rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 flex items-center gap-2 shadow-xs mt-1.5">
-                                      <CheckCircle2Icon className="size-3.5 text-zinc-400 shrink-0" />
-                                      <span>
-                                        Tindakan selesai dikerjakan.
-                                      </span>
-                                    </div>
-                                  )}
                               </div>
                             </div>
                           )}
