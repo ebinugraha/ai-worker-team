@@ -26,8 +26,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { SeedAvatar } from "@/components/seed-avatar";
 import { updateGroupChatAction, deleteGroupChatAction } from "@/action/chat";
 import { getUserBotsAction } from "@/action/bot";
-import { cn } from "@/lib/utils";
 import { Trash2Icon, Loader2Icon } from "lucide-react";
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 
 export interface BotMemberOption {
   id: string;
@@ -181,7 +185,7 @@ export function DialogEditGroupChat({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[500px] max-h-[calc(100svh-2rem)] sm:max-h-[calc(100svh-3.5rem)] flex flex-col p-0 gap-0 rounded-2xl bg-card border-border/60 overflow-hidden">
+        <DialogContent className="sm:max-w-[540px] w-full max-h-[calc(100svh-2rem)] sm:max-h-[calc(100svh-3.5rem)] flex flex-col p-0 gap-0 rounded-[20px] bg-card border border-border/80 overflow-hidden shadow-2xl">
           <DialogHeader className="p-6 pb-4 gap-1.5 text-left shrink-0">
             <DialogTitle className="text-xl font-semibold tracking-tight text-foreground">
               Edit group chat
@@ -192,7 +196,11 @@ export function DialogEditGroupChat({
           </DialogHeader>
 
           {/* Scrollable Form Body */}
-          <div className="overflow-y-auto overscroll-contain flex-1 min-h-0 px-6 py-1 flex flex-col gap-4">
+          <form
+            id="edit-group-form"
+            onSubmit={handleFormSubmit}
+            className="overflow-y-auto overscroll-contain flex-1 min-h-0 px-6 pt-1 pb-6 flex flex-col gap-5"
+          >
             {/* Server / Validation Error Alert */}
             {errorMessage && (
               <div className="rounded-xl bg-destructive/10 border border-destructive/20 p-3 text-xs text-destructive">
@@ -200,19 +208,15 @@ export function DialogEditGroupChat({
               </div>
             )}
 
-            <form
-              id="edit-group-form"
-              onSubmit={handleFormSubmit}
-              className="flex flex-col gap-4"
-            >
+            <FieldGroup className="gap-5">
               {/* Group Name input */}
-              <div className="flex flex-col gap-1.5">
-                <label
+              <Field className="gap-2">
+                <FieldLabel
                   htmlFor="edit-group-name-input"
                   className="text-sm font-medium text-foreground"
                 >
                   Name
-                </label>
+                </FieldLabel>
                 <Input
                   id="edit-group-name-input"
                   value={name}
@@ -220,91 +224,76 @@ export function DialogEditGroupChat({
                     setName(e.target.value);
                     if (errorMessage) setErrorMessage(null);
                   }}
-                  placeholder="Team group name"
+                  placeholder="Weekend plans"
                   disabled={isPending || isDeleting}
-                  className="h-9 bg-neutral-900/60 border-neutral-800 focus:border-neutral-700 text-sm"
+                  className="h-10 rounded-xl bg-muted/20 border-border/60 text-sm placeholder:text-muted-foreground/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring"
                 />
-              </div>
+              </Field>
 
               {/* Bots selection list */}
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-foreground">
-                    Members
-                  </label>
-                  <span className="text-xs text-muted-foreground">
-                    {selectedBotIds.length} of {allBots.length} selected
-                  </span>
-                </div>
+              <Field className="gap-2.5">
+                <FieldLabel className="text-sm font-medium text-foreground">
+                  Members
+                </FieldLabel>
 
                 {allBots.length === 0 ? (
-                  <div className="rounded-lg border border-border/60 p-4 text-center text-xs text-muted-foreground">
+                  <div className="rounded-xl border border-border/60 p-4 text-center text-xs text-muted-foreground bg-muted/10">
                     No bots found.
                   </div>
                 ) : (
-                  <div className="max-h-60 overflow-y-auto space-y-1 rounded-lg border border-border/60 p-1.5 bg-neutral-950/40">
+                  <div className="flex flex-col gap-2.5 pt-0.5">
                     {allBots.map((bot) => {
                       const isChecked = selectedBotIds.includes(bot.id);
                       return (
                         <div
                           key={bot.id}
                           onClick={() => !isPending && !isDeleting && toggleBot(bot.id)}
-                          className={cn(
-                            "flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors select-none",
-                            isChecked
-                              ? "bg-neutral-800/70 text-foreground"
-                              : "hover:bg-neutral-900 text-muted-foreground hover:text-foreground"
-                          )}
+                          className="flex items-center gap-3 py-1 cursor-pointer select-none group"
                         >
                           <Checkbox
                             checked={isChecked}
                             onCheckedChange={() => toggleBot(bot.id)}
                             disabled={isPending || isDeleting}
-                            className="pointer-events-none"
+                            className="size-4.5 rounded-[4px]"
                           />
-                          <SeedAvatar
-                            seed={bot.avatar}
-                            size={28}
-                            className="rounded-full shrink-0"
-                          />
-                          <div className="flex flex-col min-w-0 flex-1">
-                            <span className="text-sm font-medium truncate text-foreground">
-                              {bot.name}
-                            </span>
-                            {bot.job && (
-                              <span className="text-xs text-muted-foreground truncate">
-                                {bot.job}
-                              </span>
-                            )}
+                          <div className="size-6 shrink-0 flex items-center justify-center overflow-hidden">
+                            <SeedAvatar
+                              seed={bot.avatar}
+                              size={24}
+                              className="rounded-none shrink-0"
+                            />
                           </div>
+                          <span className="text-sm text-foreground/90 group-hover:text-foreground font-normal">
+                            {bot.name}
+                          </span>
                         </div>
                       );
                     })}
                   </div>
                 )}
-              </div>
-            </form>
-          </div>
+              </Field>
+            </FieldGroup>
+          </form>
 
           {/* Dialog Footer with Delete on justify-start and Cancel/Save on justify-end */}
-          <DialogFooter className="p-6 pt-3 mt-auto shrink-0 border-t border-border/60 flex flex-row items-center sm:justify-between justify-between w-full bg-card/90 backdrop-blur-xs">
+          <DialogFooter className="px-6 pt-4 pb-5 mt-auto shrink-0 border-t border-border/70 flex items-center justify-between w-full bg-card/95 backdrop-blur-xs">
             <Button
               type="button"
               variant="destructive"
               disabled={isPending || isDeleting}
               onClick={() => setOpenConfirmDelete(true)}
-              className="rounded-lg text-sm px-3.5 gap-1.5 cursor-pointer shadow-xs"
+              className="rounded-xl h-9 text-sm px-4 font-medium border border-destructive/30 text-destructive hover:bg-destructive/10 hover:border-destructive/40 transition-colors gap-1.5 cursor-pointer shadow-xs"
             >
               <Trash2Icon className="size-4" data-icon="inline-start" />
               Delete
             </Button>
-            <div className="flex items-center gap-2.5 ml-auto">
+            <div className="flex items-center gap-2.5">
               <Button
                 type="button"
                 variant="outline"
                 disabled={isPending || isDeleting}
                 onClick={() => onOpenChange(false)}
-                className="rounded-lg text-sm px-4 cursor-pointer"
+                className="rounded-xl h-9 text-sm px-4 font-medium border-border/70 bg-secondary/60 hover:bg-secondary text-secondary-foreground transition-colors cursor-pointer"
               >
                 Cancel
               </Button>
@@ -318,7 +307,7 @@ export function DialogEditGroupChat({
                   selectedBotIds.length < 2
                 }
                 variant="default"
-                className="rounded-lg text-sm px-4 font-semibold shadow-xs gap-1.5 cursor-pointer"
+                className="rounded-xl h-9 text-sm px-4.5 font-semibold bg-white text-zinc-950 hover:bg-zinc-200 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200 shadow-xs gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
               >
                 {isPending ? (
                   <>
@@ -339,23 +328,30 @@ export function DialogEditGroupChat({
         open={openConfirmDelete}
         onOpenChange={setOpenConfirmDelete}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-2xl border-border/60 shadow-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete group chat?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-lg font-semibold tracking-tight text-foreground">
+              Delete group chat?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-muted-foreground">
               Are you sure you want to delete{" "}
               <strong className="text-foreground">{group.name}</strong>? This action
               cannot be undone and will permanently remove this group chat and its
               conversations.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className="gap-2 sm:gap-2.5">
+            <AlertDialogCancel
+              disabled={isDeleting}
+              className="rounded-xl h-9 text-sm px-4 font-medium border-border/70 bg-secondary/60 hover:bg-secondary text-secondary-foreground transition-colors cursor-pointer"
+            >
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               disabled={isDeleting}
               onClick={handleDeleteGroup}
-              className="gap-1.5 cursor-pointer"
+              className="gap-1.5 rounded-xl h-9 text-sm px-4 font-semibold cursor-pointer shadow-xs"
             >
               {isDeleting ? (
                 <>

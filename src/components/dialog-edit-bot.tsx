@@ -27,14 +27,18 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
 import { SeedAvatar } from "@/components/seed-avatar";
-import { updateBotAction, deleteBotAction } from "@/action/bot";
 import { cn } from "@/lib/utils";
+import { updateBotAction, deleteBotAction } from "@/action/bot";
 
 export interface BotEditData {
   name: string;
   job: string;
   instructions: string;
   avatar: string;
+}
+
+function getRandomAvatarSeed(): string {
+  return `bot-${Math.random().toString(36).substring(2, 10)}`;
 }
 
 const PRESETS = [
@@ -98,7 +102,6 @@ export function DialogEditBot({
   const [isDeleting, startDeleteTransition] = React.useTransition();
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const [openConfirmDelete, setOpenConfirmDelete] = React.useState(false);
-  const [selectedPreset, setSelectedPreset] = React.useState<string | null>(null);
 
   const {
     register,
@@ -122,6 +125,12 @@ export function DialogEditBot({
     defaultValue: bot.avatar,
   });
 
+  const watchJob = useWatch({
+    control,
+    name: "job",
+    defaultValue: bot.job || "",
+  });
+
   // Sync form default values when opening dialog or bot changes
   React.useEffect(() => {
     if (open && bot) {
@@ -131,26 +140,19 @@ export function DialogEditBot({
         instructions: bot.instruction || "",
         avatar: bot.avatar,
       });
-      const matchingPreset = PRESETS.find(
-        (p) => p.job.toLowerCase() === bot.job.toLowerCase() || p.label.toLowerCase() === bot.job.toLowerCase()
-      );
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSelectedPreset(matchingPreset ? matchingPreset.label : null);
-      setErrorMessage(null);
     }
   }, [open, bot, reset]);
 
   // Handle Preset selection
   const handleSelectPreset = (preset: (typeof PRESETS)[0]) => {
-    setSelectedPreset(preset.label);
+    setValue("name", preset.name);
     setValue("job", preset.job);
     setValue("instructions", preset.instructions);
   };
 
   // Shuffle avatar seed
   const handleShuffleAvatar = () => {
-    const randomSeed = Math.random().toString(36).substring(2, 10);
-    setValue("avatar", randomSeed);
+    setValue("avatar", getRandomAvatarSeed());
   };
 
   // Form submit handler calling server action
@@ -217,10 +219,17 @@ export function DialogEditBot({
     });
   };
 
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      setErrorMessage(null);
+    }
+    onOpenChange(newOpen);
+  };
+
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[500px] max-h-[calc(100svh-2rem)] sm:max-h-[calc(100svh-3.5rem)] flex flex-col p-0 gap-0 rounded-2xl bg-card border-border/60 overflow-hidden">
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="sm:max-w-[540px] w-full max-h-[calc(100svh-2rem)] sm:max-h-[calc(100svh-3.5rem)] flex flex-col p-0 gap-0 rounded-[20px] bg-card border border-border/80 overflow-hidden shadow-2xl">
           <DialogHeader className="p-6 pb-4 gap-1.5 text-left shrink-0">
             <DialogTitle className="text-xl font-semibold tracking-tight text-foreground">
               Edit bot
@@ -234,7 +243,7 @@ export function DialogEditBot({
           <form
             id="edit-bot-form"
             onSubmit={handleSubmit(onFormSubmit)}
-            className="overflow-y-auto overscroll-contain flex-1 min-h-0 px-6 py-1 flex flex-col gap-5"
+            className="overflow-y-auto overscroll-contain flex-1 min-h-0 px-6 pt-1 pb-6 flex flex-col gap-5"
           >
             {/* Server Error Alert */}
             {errorMessage && (
@@ -246,17 +255,17 @@ export function DialogEditBot({
             {/* Preset Chips */}
             <div className="flex flex-wrap gap-2">
               {PRESETS.map((preset) => {
-                const isActive = selectedPreset === preset.label;
+                const isActive = watchJob === preset.job;
                 return (
                   <button
                     key={preset.label}
                     type="button"
                     onClick={() => handleSelectPreset(preset)}
                     className={cn(
-                      "rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors border cursor-pointer",
+                      "rounded-full px-3.5 py-1.5 text-xs transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-ring",
                       isActive
-                        ? "bg-secondary text-secondary-foreground border-border"
-                        : "bg-muted/40 text-muted-foreground border-border/40 hover:bg-muted hover:text-foreground"
+                        ? "border bg-zinc-800 text-foreground font-medium shadow-xs"
+                        : "border border-border/60 bg-secondary/40 hover:bg-secondary/70 text-muted-foreground hover:text-foreground font-normal"
                     )}
                   >
                     {preset.label}
@@ -266,13 +275,13 @@ export function DialogEditBot({
             </div>
 
             {/* Face / Avatar Section */}
-            <div className="flex items-center justify-between py-0.5">
-              <div className="flex items-center gap-3">
-                <div className="size-10 overflow-hidden shrink-0 flex items-center justify-center">
-                  <SeedAvatar seed={watchAvatar} size={40} className="rounded-none" />
+            <div className="flex items-center justify-between py-1">
+              <div className="flex items-center gap-3.5">
+                <div className="size-12 overflow-hidden shrink-0 flex items-center justify-center">
+                  <SeedAvatar seed={watchAvatar} size={48} className="rounded-none" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-foreground leading-tight">
+                  <span className="text-sm font-medium text-foreground leading-tight">
                     Face
                   </span>
                   <span className="text-xs text-muted-foreground mt-0.5">
@@ -285,7 +294,7 @@ export function DialogEditBot({
                 variant="outline"
                 size="sm"
                 onClick={handleShuffleAvatar}
-                className="rounded-lg h-8 px-3 gap-1.5 text-xs font-medium border-border/80 hover:bg-muted cursor-pointer"
+                className="rounded-lg h-8 px-3 gap-1.5 text-xs font-medium border-border/80 bg-secondary/50 hover:bg-secondary text-foreground transition-colors cursor-pointer"
               >
                 <ShuffleIcon className="size-3.5" data-icon="inline-start" />
                 Shuffle
@@ -307,7 +316,7 @@ export function DialogEditBot({
                   disabled={isPending || isDeleting}
                   {...register("name", { required: "Name is required" })}
                   aria-invalid={!!errors.name}
-                  className="rounded-lg bg-muted/20 border-border/60 text-sm focus-visible:ring-1"
+                  className="h-10 rounded-xl bg-muted/20 border-border/60 text-sm placeholder:text-muted-foreground/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring"
                 />
                 {errors.name && (
                   <span className="text-xs text-destructive">
@@ -330,7 +339,7 @@ export function DialogEditBot({
                   disabled={isPending || isDeleting}
                   {...register("job", { required: "Job is required" })}
                   aria-invalid={!!errors.job}
-                  className="rounded-lg bg-muted/20 border-border/60 text-sm focus-visible:ring-1"
+                  className="h-10 rounded-xl bg-muted/20 border-border/60 text-sm placeholder:text-muted-foreground/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring"
                 />
                 {errors.job && (
                   <span className="text-xs text-destructive">
@@ -356,7 +365,7 @@ export function DialogEditBot({
                     required: "Instructions are required",
                   })}
                   aria-invalid={!!errors.instructions}
-                  className="rounded-lg bg-muted/20 border-border/60 text-sm focus-visible:ring-1 leading-relaxed min-h-[96px] max-h-[280px]"
+                  className="min-h-[104px] rounded-xl bg-muted/20 border-border/60 text-sm placeholder:text-muted-foreground/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring leading-relaxed py-2.5 px-3 max-h-[280px] resize-none"
                 />
                 {errors.instructions && (
                   <span className="text-xs text-destructive">
@@ -368,24 +377,24 @@ export function DialogEditBot({
           </form>
 
           {/* Dialog Footer with Delete on justify-start and Cancel/Save on justify-end */}
-          <DialogFooter className="p-6 pt-3 mt-auto shrink-0 border-t border-border/60 flex flex-row items-center sm:justify-between justify-between w-full bg-card/90 backdrop-blur-xs">
+          <DialogFooter className="px-6 pt-4 pb-5 mt-auto shrink-0 border-t border-border/70 flex items-center justify-between w-full bg-card/95 backdrop-blur-xs">
             <Button
               type="button"
-              variant="destructive"
+              variant="outline"
               disabled={isPending || isDeleting}
               onClick={() => setOpenConfirmDelete(true)}
-              className="rounded-lg text-sm px-3.5 gap-1.5 cursor-pointer shadow-xs"
+              className="rounded-xl h-9 text-sm px-4 font-medium border bg-accent  text-destructive hover:bg-destructive/10 hover:border-destructive/40 transition-colors gap-1.5 cursor-pointer shadow-xs"
             >
               <Trash2Icon className="size-4" data-icon="inline-start" />
               Delete
             </Button>
-            <div className="flex items-center gap-2.5 ml-auto">
+            <div className="flex items-center gap-2.5">
               <Button
                 type="button"
                 variant="outline"
                 disabled={isPending || isDeleting}
                 onClick={() => onOpenChange(false)}
-                className="rounded-lg text-sm px-4 cursor-pointer"
+                className="rounded-xl h-9 text-sm px-4 font-medium border-border/70 bg-secondary/60 hover:bg-secondary text-secondary-foreground transition-colors cursor-pointer"
               >
                 Cancel
               </Button>
@@ -394,7 +403,7 @@ export function DialogEditBot({
                 form="edit-bot-form"
                 disabled={isPending || isDeleting}
                 variant="default"
-                className="rounded-lg text-sm px-4 font-semibold shadow-xs gap-1.5 cursor-pointer"
+                className="rounded-xl h-9 text-sm px-4.5 font-semibold bg-white text-zinc-950 hover:bg-zinc-200 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200 shadow-xs gap-1.5 transition-colors cursor-pointer"
               >
                 {isPending ? (
                   <>
@@ -415,23 +424,30 @@ export function DialogEditBot({
         open={openConfirmDelete}
         onOpenChange={setOpenConfirmDelete}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-2xl border-border/60 shadow-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete bot?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-lg font-semibold tracking-tight text-foreground">
+              Delete bot?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-muted-foreground">
               Are you sure you want to delete{" "}
               <strong className="text-foreground">{bot.name}</strong>? This action
               cannot be undone and will permanently remove this bot and its
               conversations.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className="gap-2 sm:gap-2.5">
+            <AlertDialogCancel
+              disabled={isDeleting}
+              className="rounded-xl h-9 text-sm px-4 font-medium border-border/70 bg-secondary/60 hover:bg-secondary text-secondary-foreground transition-colors cursor-pointer"
+            >
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               disabled={isDeleting}
               onClick={handleDeleteBot}
-              className="gap-1.5 cursor-pointer"
+              className="gap-1.5 rounded-xl h-9 text-sm px-4 font-semibold cursor-pointer shadow-xs"
             >
               {isDeleting ? (
                 <>

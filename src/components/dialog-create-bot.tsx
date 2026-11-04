@@ -17,10 +17,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
 import { SeedAvatar } from "@/components/seed-avatar";
-import { createBotAction, type CreateBotInput } from "@/action/bot";
 import { cn } from "@/lib/utils";
+import { createBotAction, type CreateBotInput } from "@/action/bot";
 
 export type BotFormData = CreateBotInput;
+
+function getRandomAvatarSeed(): string {
+  return `bot-${Math.random().toString(36).substring(2, 10)}`;
+}
 
 const PRESETS = [
   {
@@ -68,10 +72,6 @@ export function DialogCreateBot({
   const [isPending, startTransition] = React.useTransition();
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
-  const [selectedPreset, setSelectedPreset] = React.useState<string>(
-    PRESETS[0].label
-  );
-
   const {
     register,
     handleSubmit,
@@ -94,9 +94,21 @@ export function DialogCreateBot({
     defaultValue: "bot-ada",
   });
 
+  const watchJob = useWatch({
+    control,
+    name: "job",
+    defaultValue: PRESETS[0].job,
+  });
+
+  // Randomize avatar every time the dialog opens
+  React.useEffect(() => {
+    if (open) {
+      setValue("avatar", getRandomAvatarSeed());
+    }
+  }, [open, setValue]);
+
   // Handle Preset selection
   const handleSelectPreset = (preset: (typeof PRESETS)[0]) => {
-    setSelectedPreset(preset.label);
     setValue("name", preset.name);
     setValue("job", preset.job);
     setValue("instructions", preset.instructions);
@@ -104,8 +116,14 @@ export function DialogCreateBot({
 
   // Shuffle avatar seed
   const handleShuffleAvatar = () => {
-    const randomSeed = Math.random().toString(36).substring(2, 10);
-    setValue("avatar", randomSeed);
+    setValue("avatar", getRandomAvatarSeed());
+  };
+
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      setErrorMessage(null);
+    }
+    onOpenChange(newOpen);
   };
 
   // Form submit handler calling server action
@@ -134,7 +152,12 @@ export function DialogCreateBot({
         }
 
         onOpenChange(false);
-        reset();
+        reset({
+          name: PRESETS[0].name,
+          job: PRESETS[0].job,
+          instructions: PRESETS[0].instructions,
+          avatar: getRandomAvatarSeed(),
+        });
       } catch (err: unknown) {
         setErrorMessage(
           err instanceof Error ? err.message : "An unexpected error occurred."
@@ -144,8 +167,8 @@ export function DialogCreateBot({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[calc(100svh-2rem)] sm:max-h-[calc(100svh-3.5rem)] flex flex-col p-0 gap-0 rounded-2xl bg-card border-border/60 overflow-hidden">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-[540px] w-full max-h-[calc(100svh-2rem)] sm:max-h-[calc(100svh-3.5rem)] flex flex-col p-0 gap-0 rounded-[20px] bg-card border border-border/80 overflow-hidden shadow-2xl">
         <DialogHeader className="p-6 pb-4 gap-1.5 text-left shrink-0">
           <DialogTitle className="text-xl font-semibold tracking-tight text-foreground">
             New bot
@@ -159,7 +182,7 @@ export function DialogCreateBot({
         <form
           id="create-bot-form"
           onSubmit={handleSubmit(onFormSubmit)}
-          className="overflow-y-auto overscroll-contain flex-1 min-h-0 px-6 py-1 flex flex-col gap-5"
+          className="overflow-y-auto overscroll-contain flex-1 min-h-0 px-6 pt-1 pb-6 flex flex-col gap-5"
         >
           {/* Server Error Alert */}
           {errorMessage && (
@@ -171,17 +194,17 @@ export function DialogCreateBot({
           {/* Preset Chips */}
           <div className="flex flex-wrap gap-2">
             {PRESETS.map((preset) => {
-              const isActive = selectedPreset === preset.label;
+              const isActive = watchJob === preset.job;
               return (
                 <button
                   key={preset.label}
                   type="button"
                   onClick={() => handleSelectPreset(preset)}
                   className={cn(
-                    "rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors border cursor-pointer",
+                    "rounded-full px-3.5 py-1.5 text-xs transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-ring",
                     isActive
-                      ? "bg-secondary text-secondary-foreground border-border"
-                      : "bg-muted/40 text-muted-foreground border-border/40 hover:bg-muted hover:text-foreground"
+                      ? "border bg-zinc-800 text-foreground font-medium shadow-xs"
+                      : "border border-border/60 bg-secondary/40 hover:bg-secondary/70 text-muted-foreground hover:text-foreground font-normal"
                   )}
                 >
                   {preset.label}
@@ -191,13 +214,13 @@ export function DialogCreateBot({
           </div>
 
           {/* Face / Avatar Section */}
-          <div className="flex items-center justify-between py-0.5">
-            <div className="flex items-center gap-3">
-              <div className="size-10 overflow-hidden shrink-0 flex items-center justify-center">
-                <SeedAvatar seed={watchAvatar} size={40} className="rounded-none" />
+          <div className="flex items-center justify-between py-1">
+            <div className="flex items-center gap-3.5">
+              <div className="size-12 overflow-hidden shrink-0 flex items-center justify-center">
+                <SeedAvatar seed={watchAvatar} size={48} className="rounded-none" />
               </div>
               <div className="flex flex-col">
-                <span className="text-sm font-semibold text-foreground leading-tight">
+                <span className="text-sm font-medium text-foreground leading-tight">
                   Face
                 </span>
                 <span className="text-xs text-muted-foreground mt-0.5">
@@ -210,7 +233,7 @@ export function DialogCreateBot({
               variant="outline"
               size="sm"
               onClick={handleShuffleAvatar}
-              className="rounded-lg h-8 px-3 gap-1.5 text-xs font-medium border-border/80 hover:bg-muted cursor-pointer"
+              className="rounded-lg h-8 px-3 gap-1.5 text-xs font-medium border-border/80 bg-secondary/50 hover:bg-secondary text-foreground transition-colors cursor-pointer"
             >
               <ShuffleIcon className="size-3.5" data-icon="inline-start" />
               Shuffle
@@ -232,7 +255,7 @@ export function DialogCreateBot({
                 disabled={isPending}
                 {...register("name", { required: "Name is required" })}
                 aria-invalid={!!errors.name}
-                className="rounded-lg bg-muted/20 border-border/60 text-sm focus-visible:ring-1"
+                className="h-10 rounded-xl bg-muted/20 border-border/60 text-sm placeholder:text-muted-foreground/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring"
               />
               {errors.name && (
                 <span className="text-xs text-destructive">
@@ -255,7 +278,7 @@ export function DialogCreateBot({
                 disabled={isPending}
                 {...register("job", { required: "Job is required" })}
                 aria-invalid={!!errors.job}
-                className="rounded-lg bg-muted/20 border-border/60 text-sm focus-visible:ring-1"
+                className="h-10 rounded-xl bg-muted/20 border-border/60 text-sm placeholder:text-muted-foreground/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring"
               />
               {errors.job && (
                 <span className="text-xs text-destructive">
@@ -281,7 +304,7 @@ export function DialogCreateBot({
                   required: "Instructions are required",
                 })}
                 aria-invalid={!!errors.instructions}
-                className="rounded-lg bg-muted/20 border-border/60 text-sm focus-visible:ring-1 leading-relaxed min-h-[96px] max-h-[280px]"
+                className="min-h-[104px] rounded-xl bg-muted/20 border-border/60 text-sm placeholder:text-muted-foreground/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring leading-relaxed py-2.5 px-3 max-h-[280px] resize-none"
               />
               {errors.instructions && (
                 <span className="text-xs text-destructive">
@@ -292,13 +315,13 @@ export function DialogCreateBot({
           </FieldGroup>
         </form>
 
-        <DialogFooter className="p-6 pt-3 mt-auto shrink-0 border-t border-border/60 flex items-center justify-end gap-2.5 bg-card/90 backdrop-blur-xs">
+        <DialogFooter className="px-6 pt-4 pb-5 mt-auto shrink-0 border-t border-border/70 flex items-center justify-end gap-2.5 bg-card/95 backdrop-blur-xs">
           <Button
             type="button"
             variant="outline"
             disabled={isPending}
             onClick={() => onOpenChange(false)}
-            className="rounded-lg text-sm px-4 cursor-pointer"
+            className="rounded-xl h-9 text-sm px-4 font-medium border-border/70 bg-secondary/60 hover:bg-secondary text-secondary-foreground transition-colors cursor-pointer"
           >
             Cancel
           </Button>
@@ -307,7 +330,7 @@ export function DialogCreateBot({
             form="create-bot-form"
             disabled={isPending}
             variant="default"
-            className="rounded-lg text-sm px-4 font-semibold shadow-xs gap-1.5 cursor-pointer"
+            className="rounded-xl h-9 text-sm px-4.5 font-semibold bg-white text-zinc-950 hover:bg-zinc-200 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200 shadow-xs gap-1.5 transition-colors cursor-pointer"
           >
             {isPending ? (
               <>
