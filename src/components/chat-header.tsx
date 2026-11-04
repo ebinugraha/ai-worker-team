@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { MonitorIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SeedAvatar } from "@/components/seed-avatar";
@@ -125,33 +124,31 @@ export function ChatHeader({
               <div className="size-6 shrink-0 flex items-center justify-center overflow-hidden rounded-lg group-hover:scale-105 transition-transform">
                 <SeedAvatar seed={currentAvatar} size={36} alt={currentName} />
               </div>
-                <span className="font-bold text-base sm:text-sm text-foreground truncate group-hover:text-foreground">
-                  {currentName}
-                </span>
+              <span className="font-medium text-sm text-foreground truncate group-hover:text-foreground">
+                {currentName}
+              </span>
             </button>
           )}
         </div>
 
-        {/* Right section: Simple Screen Toggle Button */}
-        <div className="flex items-center gap-3">
+        {/* Right section: Monitor Icon Toggle Button */}
+        <div className="flex items-center gap-2">
           {!isGroup && (
-            <Button
+            <button
               type="button"
               onClick={onToggleMonitor}
-              size="sm"
               className={cn(
-                "h-8 text-sm font-medium gap-3 px-4 rounded-lg cursor-pointer transition-colors",
-                !isMonitorOpen
-                  ? "bg-white text-black hover:bg-white/80"
-                  : "text-muted-foreground bg-accent  hover:text-foreground hover:bg-muted/50 border-none"
+                "size-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                isMonitorOpen
+                  ? "bg-secondary text-foreground border border-border/80 shadow-xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
               )}
-              title={isMonitorOpen ? "Tutup layar komputer" : "Buka layar komputer"}
-              aria-label={isMonitorOpen ? "Tutup layar komputer" : "Buka layar komputer"}
+              title={isMonitorOpen ? "Close screen" : "Show screen"}
+              aria-label={isMonitorOpen ? "Close screen" : "Show screen"}
               aria-pressed={isMonitorOpen}
             >
               <MonitorIcon className="size-4" />
-              <span>{isMonitorOpen ? "Close Screen" : "Show Screen"}</span>
-            </Button>
+            </button>
           )}
         </div>
       </header>

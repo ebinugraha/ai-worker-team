@@ -4,7 +4,6 @@ import * as React from "react";
 import {
   MonitorIcon,
   Maximize2Icon,
-  Minimize2Icon,
   Loader2Icon,
   RotateCwIcon,
   AlertCircleIcon,
@@ -163,18 +162,6 @@ export function DaytonaVncViewer({
     }
   }, [isFullscreen]);
 
-  if (!sandboxId) {
-    return (
-      <div className={cn("flex flex-col items-center justify-center h-full w-full p-6 text-center text-muted-foreground", className)}>
-        <MonitorIcon className="size-10 mb-2 opacity-40" />
-        <p className="text-sm font-medium">Sandbox Daytona belum terkonfigurasi</p>
-        <p className="text-xs text-muted-foreground/80 mt-1 max-w-xs">
-          Bot ini tidak memiliki ID sandbox aktif untuk menampilkan sesi VNC.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <>
       {/* Base UI Dialog state manager for accessibility and state control */}
@@ -201,140 +188,130 @@ export function DaytonaVncViewer({
         Fullscreen Backdrop Overlay:
         Placed at z-50 to blur background behind the modal dialog.
         The VNC container has z-[60] so it sits ON TOP of this backdrop without being blurred!
+        Clicking the backdrop closes fullscreen mode.
       */}
       {isFullscreen && (
         <div
           data-slot="vnc-backdrop"
           aria-hidden="true"
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm animate-in fade-in-0 duration-150"
+          onClick={() => setIsFullscreen(false)}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md animate-in fade-in-0 duration-150 cursor-pointer"
         />
       )}
 
       {/* 
         Single Persistent Container for VNC:
-        When isFullscreen is true, it expands to a fixed fullscreen modal at z-[60] (above backdrop).
-        When isFullscreen is false, it stays inline within the resizable panel.
+        When isFullscreen is true: centered floating modal matching 4:3 screen ratio with smooth border-radius.
+        When isFullscreen is false: inline within the resizable panel.
         IMPORTANT: The iframe is loaded ONCE and NEVER unmounted or remounted!
       */}
       <div
         className={cn(
           isFullscreen
-            ? "fixed inset-2 sm:inset-4 md:inset-6 z-[60] flex flex-col bg-background rounded-xl border border-border shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150"
+            ? "fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-5 md:p-6 pointer-events-none"
             : "relative flex flex-col h-full w-full min-h-0 min-w-0 bg-background overflow-hidden",
           className
         )}
       >
-        {/* Fullscreen Header (only visible in fullscreen mode) */}
-        {isFullscreen && (
-          <header className="h-16 w-full px-4 sm:px-6 border-b border-border/60 bg-background/95 backdrop-blur-sm flex items-center justify-between shrink-0 select-none">
-            <div className="flex items-center gap-3 min-w-0">
-              <MonitorIcon className="size-5 text-muted-foreground shrink-0" />
-              <span className="font-semibold text-base sm:text-lg text-foreground truncate">
-                {`${botName}'s screen`}
-              </span>
-            </div>
+        <div
+          className={cn(
+            isFullscreen
+              ? "pointer-events-auto relative flex flex-col bg-neutral-950 rounded-2xl md:rounded-[22px] shadow-2xl overflow-hidden w-full max-w-[min(94vw,calc((92vh-44px)*4/3))] h-[min(92vh,calc(94vw*3/4+44px))] max-h-[92vh] border-none ring-1 ring-white/10 animate-in fade-in-0 zoom-in-95 duration-150"
+              : "flex flex-col h-full w-full min-h-0 min-w-0 overflow-hidden"
+          )}
+        >
+          {/* Fullscreen Header (only visible in fullscreen mode) */}
+          {isFullscreen && (
+            <header className="h-11 w-full px-4 sm:px-5 bg-neutral-900/90 backdrop-blur-md flex items-center justify-between shrink-0 select-none border-none">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="size-2 rounded-full bg-emerald-400 shrink-0" />
+                <span className="font-medium text-xs sm:text-sm text-foreground truncate">
+                  {`${botName}'s screen`}
+                </span>
+                <span className="text-[10px] font-mono text-muted-foreground/70 px-1.5 py-0.5 rounded-md bg-white/5 select-none hidden sm:inline-block">
+                  1024×768
+                </span>
+              </div>
 
-            <div className="flex items-center gap-3">
-              {vncUrl && (
-                <a
-                  href={vncUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="size-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                  title="Buka langsung di tab baru"
-                  aria-label="Buka di tab baru"
+              <div className="flex items-center gap-1.5">
+                {vncUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setIsTakeoverMode(!isTakeoverMode)}
+                    className={cn(
+                      "h-7 px-2.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer select-none",
+                      isTakeoverMode
+                        ? "bg-primary text-primary-foreground shadow-xs"
+                        : "bg-white/5 text-muted-foreground hover:text-foreground hover:bg-white/10"
+                    )}
+                    title={
+                      isTakeoverMode
+                        ? "Matikan kontrol langsung"
+                        : "Kendalikan layar langsung (mouse & keyboard)"
+                    }
+                  >
+                    <span
+                      className={cn(
+                        "size-1.5 rounded-full transition-colors",
+                        isTakeoverMode ? "bg-emerald-400" : "bg-neutral-500"
+                      )}
+                    />
+                    <span>{isTakeoverMode ? "Kontrol Aktif" : "Kendalikan"}</span>
+                  </button>
+                )}
+
+                {vncUrl && (
+                  <a
+                    href={vncUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="size-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
+                    title="Buka langsung di tab baru"
+                    aria-label="Buka di tab baru"
+                  >
+                    <ExternalLinkIcon className="size-3.5" />
+                  </a>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleReload}
+                  disabled={isLoading}
+                  className="size-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors cursor-pointer"
+                  title="Muat ulang layar"
+                  aria-label="Muat ulang layar"
                 >
-                  <ExternalLinkIcon className="size-4" />
-                </a>
-              )}
-              <button
-                type="button"
-                onClick={handleReload}
-                disabled={isLoading}
-                className="size-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
-                title="Muat ulang layar"
-                aria-label="Muat ulang layar"
-              >
-                <RotateCwIcon className={cn("size-4", isReloading && "animate-spin")} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsFullscreen(false)}
-                className="size-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
-                title="Keluar dari layar penuh"
-              >
-                <Minimize2Icon className="size-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsFullscreen(false)}
-                className="size-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
-                title="Tutup dialog"
-                aria-label="Tutup"
-              >
-                <XIcon className="size-4" />
-              </button>
-            </div>
-          </header>
-        )}
-
-        {/* Panel Top Bar in inline preview mode */}
-        {!isFullscreen && !isMobileView && (
-          <header className="h-12 w-full px-4 sm:px-6 bg-background/95 backdrop-blur-sm border-b border-border/60 flex items-center justify-between shrink-0 select-none">
-            <div className="flex items-center gap-3 min-w-0">
-              <MonitorIcon className="size-4 text-muted-foreground shrink-0" />
-              <span className="font-semibold text-base sm:text-sm text-foreground truncate">
-                Live Screen Preview
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              {vncUrl && (
-                <div
-                  className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-accent h-8"
-                  title="Moderate Screen: kontrol mouse & keyboard langsung di layar"
-                >
-                  <span className="text-xs sm:text-sm text-muted-foreground font-medium select-none hidden lg:inline">
-                    Moderate Screen
-                  </span>
-                  <Switch
-                    checked={isTakeoverMode}
-                    onCheckedChange={(checked) => setIsTakeoverMode(Boolean(checked))}
-                    aria-label="Moderate Screen"
+                  <RotateCwIcon
+                    className={cn("size-3.5", isReloading && "animate-spin")}
                   />
-                </div>
-              )}
-              {vncUrl && (
-                <a
-                  href={vncUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="size-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                  title="Buka langsung di tab baru"
-                  aria-label="Buka di tab baru"
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(false)}
+                  className="size-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors cursor-pointer ml-0.5"
+                  title="Tutup layar penuh (Esc)"
+                  aria-label="Tutup"
                 >
-                  <ExternalLinkIcon className="size-4" />
-                </a>
-              )}
-              <button
-                type="button"
-                onClick={handleReload}
-                disabled={isLoading}
-                className="size-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
-                title="Muat ulang layar"
-                aria-label="Muat ulang layar"
-              >
-                <RotateCwIcon className={cn("size-4", isReloading && "animate-spin")} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsFullscreen(true)}
-                className="size-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
-                title="Layar penuh (Fullscreen)"
-              >
-                <Maximize2Icon className="size-4" />
-              </button>
-            </div>
+                  <XIcon className="size-4" />
+                </button>
+              </div>
+            </header>
+          )}
+
+        {/* Panel Top Bar in inline preview mode: Clean top row matching resizable-screen-vnc.png */}
+        {!isFullscreen && !isMobileView && (
+          <header className="h-12 w-full px-4 sm:px-6 flex items-center justify-end shrink-0 select-none">
+            <button
+              type="button"
+              onClick={handleReload}
+              disabled={isLoading}
+              className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              title="Muat ulang layar"
+              aria-label="Muat ulang layar"
+            >
+              <RotateCwIcon className={cn("size-4", isReloading && "animate-spin")} />
+            </button>
           </header>
         )}
 
@@ -485,136 +462,151 @@ export function DaytonaVncViewer({
                     "flex flex-col items-center w-full min-h-0 px-3 py-3",
                     isMobileMinimized && "hidden"
                   )
-                : "flex-1 flex flex-col w-full min-h-0 overflow-y-auto px-4 sm:px-6 pt-4 pb-6 bg-background"
+                : "flex-1 flex flex-col items-center w-full min-h-0 overflow-y-auto px-4 sm:px-6 pt-0 pb-6 bg-background"
           )}
         >
-          {/* Simple Friendly Loading State */}
-          {isLoading && (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center my-auto w-full">
-              <div className="flex flex-col items-center gap-3.5 max-w-sm">
-                <Loader2Icon className="size-8 animate-spin text-zinc-400" />
-                <p className="text-base sm:text-lg text-zinc-100 font-semibold">
-                  Sedang menyiapkan layar komputer...
-                </p>
-                <p className="text-sm text-zinc-400">
-                  Mohon tunggu sebentar, layar kerja akan segera tampil otomatis.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Error State */}
-          {error && !isLoading && (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center my-auto max-w-md mx-auto">
-              <AlertCircleIcon className="size-8 sm:size-10 text-rose-500 mb-3" />
-              <div className="space-y-1.5">
-                <p className="text-base font-semibold text-rose-400">
-                  Layar Tidak Dapat Dimuat
-                </p>
-                <p className="text-sm text-zinc-400">{error}</p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="default"
-                onClick={fetchVncUrl}
-                className="mt-4 h-9 px-4 text-sm gap-2 cursor-pointer rounded-lg border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-100"
-              >
-                <RotateCwIcon className="size-4" />
-                Coba Lagi
-              </Button>
-            </div>
-          )}
-
-          {/* Persistent VNC View */}
-          {vncUrl && !isLoading && (
+          <div
+            className={cn(
+              "flex flex-col items-center w-full transition-all",
+              isFullscreen ? "h-full flex-1 min-h-0 justify-center" : "justify-start"
+            )}
+          >
+            {/* VNC Screen Thumbnail: Full 4:3 aspect ratio matching 1024x768 Daytona display (no gray pillarbox bars on left/right), borderless, clean with smooth rounded radius */}
             <div
               className={cn(
-                "flex flex-col items-center w-full transition-all",
-                isFullscreen ? "h-full flex-1 min-h-0 justify-center" : "justify-start"
+                "relative transition-all select-none overflow-hidden",
+                isFullscreen
+                  ? "w-full h-full flex-1 min-h-0 min-w-0 bg-neutral-950 p-0 m-0 rounded-none border-none"
+                  : isMobileView
+                    ? "w-full max-w-md aspect-[4/3] rounded-xl bg-neutral-950 shadow-sm"
+                    : "w-full max-w-xl aspect-[4/3] rounded-[18px] bg-neutral-950 shadow-md cursor-pointer group hover:shadow-lg transition-shadow",
+                !isFullscreen && isTakeoverMode && "ring-2 ring-zinc-400"
               )}
+              onClick={() => {
+                if (!isFullscreen && !isTakeoverMode) setIsFullscreen(true);
+              }}
+              title={
+                !isFullscreen
+                  ? isTakeoverMode
+                    ? "Kontrol layar aktif: Anda dapat menggerakkan mouse & mengetik langsung"
+                    : "Klik untuk membuka layar penuh"
+                  : undefined
+              }
             >
-              <div
-                className={cn(
-                  "relative transition-all select-none",
-                  isFullscreen
-                    ? "w-full h-full flex-1 min-h-0 min-w-0 bg-neutral-950 p-0 m-0"
-                    : isMobileView
-                      ? "w-full max-w-md rounded-xl border border-zinc-800 bg-[#18181b] p-1.5 shadow-sm"
-                      : "w-full max-w-xl rounded-xl border border-zinc-800 bg-[#18181b] p-2 sm:p-2.5 shadow-sm",
-                  !isFullscreen && isTakeoverMode && "border-2 border-zinc-400 shadow-lg",
-                  !isFullscreen && !isTakeoverMode && "hover:border-zinc-700 cursor-pointer group"
-                )}
-                onClick={() => {
-                  if (!isFullscreen && !isTakeoverMode) setIsFullscreen(true);
-                }}
-                title={
-                  !isFullscreen
-                    ? isTakeoverMode
-                      ? "Kontrol layar aktif: Anda dapat menggerakkan mouse & mengetik langsung"
-                      : "Klik untuk membuka layar penuh"
-                    : undefined
-                }
-              >
-                {/* Screen Display Frame */}
-                <div
+              {/* 1. Live Iframe when vncUrl is active */}
+              {vncUrl && (
+                <iframe
+                  ref={iframeRef}
+                  src={vncUrl}
+                  title={`${botName}'s screen`}
                   className={cn(
-                    "relative w-full overflow-hidden bg-black",
-                    isFullscreen
-                      ? "h-full flex-1 min-h-0"
-                      : isMobileView
-                        ? "aspect-[4/3] max-h-[220px] rounded-lg border border-black/50"
-                        : "aspect-[4/3] rounded-lg border border-black/50"
+                    "w-full h-full border-0 bg-neutral-950 block",
+                    !isFullscreen && !isTakeoverMode && "pointer-events-none"
                   )}
-                >
-                  {/* Single Persistent Iframe */}
-                  <iframe
-                    ref={iframeRef}
-                    src={vncUrl}
-                    title={`${botName}'s screen`}
-                    className={cn(
-                      "w-full h-full border-0 bg-neutral-950 block",
-                      !isFullscreen && !isTakeoverMode && "pointer-events-none"
-                    )}
-                    allow="clipboard-read; clipboard-write; fullscreen"
-                    tabIndex={isFullscreen || isTakeoverMode ? 0 : -1}
-                  />
+                  allow="clipboard-read; clipboard-write; fullscreen"
+                  tabIndex={isFullscreen || isTakeoverMode ? 0 : -1}
+                />
+              )}
 
-                  {/* Click-to-Fullscreen Hover Overlay Hint (only when not in Takeover Mode) */}
-                  {!isFullscreen && !isMobileView && !isTakeoverMode && (
-                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors cursor-pointer">
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900/90 text-zinc-100 text-sm px-4 py-2 rounded-lg flex items-center gap-2 border border-zinc-700 shadow-lg">
-                        <Maximize2Icon className="size-4" />
-                        <span>Klik untuk perbesar layar</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Mobile Corner Badge Hint */}
-                  {!isFullscreen && isMobileView && (
-                    <div className="absolute bottom-1.5 right-1.5 z-10 bg-black/80 text-[10px] text-zinc-300 px-2 py-0.5 rounded font-mono flex items-center gap-1 border border-zinc-800 pointer-events-none">
-                      <Maximize2Icon className="size-2.5" />
-                      <span>Fullscreen</span>
-                    </div>
-                  )}
+              {/* 2. Loading State: Virtual desktop mockup with spinner */}
+              {isLoading && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-[#0b5d6f] to-[#0d7688]">
+                  {/* Top simulated OS bar */}
+                  <div className="absolute top-0 inset-x-0 h-4 bg-white/15 backdrop-blur-xs flex items-center px-2">
+                    <div className="size-1.5 rounded-full bg-white/40 mr-1" />
+                  </div>
+                  {/* Desktop icons preview */}
+                  <div className="absolute top-6 left-3 flex flex-col gap-2">
+                    <div className="size-2.5 rounded-xs bg-white/30" />
+                    <div className="size-2.5 rounded-xs bg-white/30" />
+                    <div className="size-2.5 rounded-xs bg-white/30" />
+                  </div>
+                  <div className="flex flex-col items-center gap-2 p-4 text-center">
+                    <Loader2Icon className="size-6 text-white animate-spin" />
+                    <p className="text-xs font-medium text-white/95">
+                      Menyiapkan layar komputer...
+                    </p>
+                  </div>
+                  {/* Bottom dock */}
+                  <div className="absolute bottom-2 inset-x-0 flex justify-center">
+                    <div className="h-3 w-16 rounded-full bg-black/40 backdrop-blur-xs" />
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Centered Label below screen card in Preview mode */}
-              {!isFullscreen && !isMobileView && (
-                <>
-                  <p className="text-xs text-muted-foreground text-center mt-2.5 font-normal select-none">
-                    {`${botName}'s screen`}
+              {/* 3. Error State cleanly framed inside the screen */}
+              {error && !isLoading && !vncUrl && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-[#121214] text-center p-4">
+                  <AlertCircleIcon className="size-6 text-rose-400 mb-0.5" />
+                  <p className="text-xs font-semibold text-zinc-200">
+                    Layar Tidak Dapat Dimuat
                   </p>
-                  <div className="flex-1 w-full" />
-                </>
+                  <p className="text-[11px] text-zinc-400 max-w-[220px] truncate">
+                    {error}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fetchVncUrl();
+                    }}
+                    className="mt-1 h-7 px-3 text-xs gap-1.5 rounded-lg border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 cursor-pointer"
+                  >
+                    <RotateCwIcon className="size-3" />
+                    Coba Lagi
+                  </Button>
+                </div>
+              )}
+
+              {/* 4. Missing Sandbox ID State cleanly framed inside the screen */}
+              {!sandboxId && !isLoading && !vncUrl && !error && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-[#121214] text-center p-4">
+                  <MonitorIcon className="size-7 text-zinc-500 opacity-60 mb-0.5" />
+                  <p className="text-xs font-medium text-zinc-200">
+                    Sandbox belum aktif
+                  </p>
+                  <p className="text-[11px] text-zinc-500 max-w-[200px]">
+                    Mulai percakapan untuk mengaktifkan komputer virtual bot.
+                  </p>
+                </div>
+              )}
+
+              {/* Click-to-Fullscreen Hover Overlay Hint (only when not in Takeover Mode) */}
+              {!isFullscreen && !isMobileView && !isTakeoverMode && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/0 group-hover:bg-black/25 transition-colors pointer-events-none">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900/90 text-zinc-100 text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 border border-white/10 shadow-md backdrop-blur-xs">
+                    <Maximize2Icon className="size-3.5" />
+                    <span>Perbesar layar</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Mobile Corner Badge Hint */}
+              {!isFullscreen && isMobileView && (
+                <div className="absolute bottom-1.5 right-1.5 z-10 bg-black/80 text-[10px] text-zinc-300 px-2 py-0.5 rounded font-mono flex items-center gap-1 border border-zinc-800 pointer-events-none">
+                  <Maximize2Icon className="size-2.5" />
+                  <span>Fullscreen</span>
+                </div>
               )}
             </div>
-          )}
+
+            {/* Centered Label below screen card in Preview mode */}
+            {!isFullscreen && !isMobileView && (
+              <>
+                <p className="text-xs text-muted-foreground text-center mt-3 font-normal select-none">
+                  {`${botName}'s screen`}
+                </p>
+                <div className="flex-1 w-full" />
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </>
-  );
+    </div>
+  </>
+);
 }
 
 export default DaytonaVncViewer;
