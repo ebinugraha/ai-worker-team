@@ -20,6 +20,11 @@ export interface SandboxContext {
   sandboxId?: string | null;
   isGroup?: boolean;
   memberBots?: MemberBotInfo[];
+  pendingHandoff?: {
+    targetBotId: string;
+    targetBotName: string;
+    reason: string;
+  } | null;
 }
 
 export const sandboxContextStorage = new AsyncLocalStorage<SandboxContext>();
@@ -89,6 +94,14 @@ export const handoffTool = tool({
       return {
         success: false,
         error: `Bot "${targetBotName}" not found in this group chat. Available teammate bots: ${availableList}`,
+      };
+    }
+
+    if (store) {
+      store.pendingHandoff = {
+        targetBotId: targetBot.id,
+        targetBotName: targetBot.name,
+        reason,
       };
     }
 
@@ -248,6 +261,18 @@ export const bashExecTool = tool({
             "\n...[stdout truncated after 250,000 characters]"
           : rawStdout;
 
+      let diagnosticHint: string | undefined;
+      if (res.timedOut) {
+        diagnosticHint =
+          "Command timed out. If you started a long-running server (e.g. npm run dev, python -m http.server, vite), run it in the background using: nohup <command> > /tmp/server.log 2>&1 & sleep 2 && cat /tmp/server.log";
+      } else if (res.exitCode === 127) {
+        diagnosticHint =
+          "Exit code 127 (command not found). Check PATH or install the missing binary/package first.";
+      } else if (res.exitCode !== 0) {
+        diagnosticHint =
+          "Command returned non-zero exit code. Read the output carefully, fix the root cause before retrying, and do not repeat the exact same failing command.";
+      }
+
       return {
         success: res.exitCode === 0,
         command,
@@ -256,6 +281,7 @@ export const bashExecTool = tool({
         stderr: res.exitCode !== 0 ? stdout : "",
         exitCode: res.exitCode,
         timedOut: res.timedOut ?? false,
+        ...(diagnosticHint ? { diagnosticHint } : {}),
       };
     } catch (err) {
       return {
@@ -362,13 +388,23 @@ export const fileSystemTool = tool({
           size: buffer.length,
         };
       } else if (action === "write") {
+        const cleanTarget = path.trim();
+        const lastSlash = cleanTarget.lastIndexOf("/");
+        if (lastSlash > 0) {
+          const parentDir = cleanTarget.slice(0, lastSlash);
+          if (parentDir && parentDir !== ".") {
+            await sandbox.process
+              .executeCommand(`mkdir -p "${parentDir}"`)
+              .catch(() => {});
+          }
+        }
         const text = content ?? "";
         const buffer = Buffer.from(text, "utf-8");
-        await sandbox.fs.uploadFile(buffer, path);
+        await sandbox.fs.uploadFile(buffer, cleanTarget);
         return {
           success: true,
           action: "write",
-          path,
+          path: cleanTarget,
           bytesWritten: buffer.length,
         };
       } else if (action === "edit") {
@@ -392,16 +428,82 @@ export const fileSystemTool = tool({
           };
         }
         const fileText = buffer.toString("utf-8");
-        if (!fileText.includes(oldContent)) {
+        let updated: string | null = null;
+
+        if (fileText.includes(oldContent)) {
+          updated = fileText.replace(oldContent, newContent ?? "");
+        } else {
+          // Fallback 1: Normalize CRLF to LF
+          const normFile = fileText.replace(/\r\n/g, "\n");
+          const normOld = oldContent.replace(/\r\n/g, "\n");
+          const normNew = (newContent ?? "").replace(/\r\n/g, "\n");
+          if (normFile.includes(normOld)) {
+            updated = normFile.replace(normOld, normNew);
+          } else {
+            // Fallback 2: Line-by-line trailing whitespace tolerant match
+            const fileLines = normFile.split("\n");
+            const oldLines = normOld.split("\n");
+            if (oldLines.length > 0 && oldLines.length <= fileLines.length) {
+              let matchStartIdx = -1;
+              for (let i = 0; i <= fileLines.length - oldLines.length; i++) {
+                let allMatch = true;
+                for (let j = 0; j < oldLines.length; j++) {
+                  if (fileLines[i + j].trimEnd() !== oldLines[j].trimEnd()) {
+                    allMatch = false;
+                    break;
+                  }
+                }
+                if (allMatch) {
+                  matchStartIdx = i;
+                  break;
+                }
+              }
+              if (matchStartIdx !== -1) {
+                const before = fileLines.slice(0, matchStartIdx);
+                const after = fileLines.slice(matchStartIdx + oldLines.length);
+                updated = [...before, normNew, ...after].join("\n");
+              }
+            }
+          }
+        }
+
+        if (updated === null) {
+          const normFileLines = fileText.replace(/\r\n/g, "\n").split("\n");
+          const firstAnchor = oldContent
+            .split("\n")
+            .map((l) => l.trim())
+            .find((l) => l.length > 3);
+          let previewSnippet = "";
+          if (firstAnchor) {
+            const foundIdx = normFileLines.findIndex((l) =>
+              l.includes(firstAnchor)
+            );
+            if (foundIdx !== -1) {
+              const start = Math.max(0, foundIdx - 5);
+              const end = Math.min(normFileLines.length, foundIdx + 15);
+              previewSnippet = normFileLines
+                .slice(start, end)
+                .map((l, idx) => `${start + idx + 1}: ${l}`)
+                .join("\n");
+            }
+          }
+          if (!previewSnippet) {
+            previewSnippet = normFileLines
+              .slice(0, 35)
+              .map((l, idx) => `${idx + 1}: ${l}`)
+              .join("\n");
+          }
+
           return {
             success: false,
             action: "edit",
             path,
             error:
-              "Could not find exact match for 'oldContent' in file. Call action 'read' first to verify current contents before editing.",
+              "Could not find exact match for 'oldContent' in file. Use the 'actualFilePreview' below to copy the exact lines for your next edit call.",
+            actualFilePreview: previewSnippet,
           };
         }
-        const updated = fileText.replace(oldContent, newContent ?? "");
+
         const newBuf = Buffer.from(updated, "utf-8");
         await sandbox.fs.uploadFile(newBuf, path);
         return {

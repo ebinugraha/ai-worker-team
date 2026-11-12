@@ -133,23 +133,21 @@ export function ChatHeader({
 
         {/* Right section: Monitor Icon Toggle Button */}
         <div className="flex items-center gap-2">
-          {!isGroup && (
-            <button
-              type="button"
-              onClick={onToggleMonitor}
-              className={cn(
-                "size-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                isMonitorOpen
-                  ? "bg-secondary text-foreground border border-border/80 shadow-xs"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              )}
-              title={isMonitorOpen ? "Close screen" : "Show screen"}
-              aria-label={isMonitorOpen ? "Close screen" : "Show screen"}
-              aria-pressed={isMonitorOpen}
-            >
-              <MonitorIcon className="size-4" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onToggleMonitor}
+            className={cn(
+              "size-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-ring",
+              isMonitorOpen
+                ? "bg-secondary text-foreground border border-border/80 shadow-xs"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            )}
+            title={isMonitorOpen ? "Close screen" : "Show screen"}
+            aria-label={isMonitorOpen ? "Close screen" : "Show screen"}
+            aria-pressed={isMonitorOpen}
+          >
+            <MonitorIcon className="size-4" />
+          </button>
         </div>
       </header>
 

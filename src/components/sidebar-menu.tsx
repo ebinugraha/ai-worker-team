@@ -536,6 +536,78 @@ export function SidebarMenu({
               );
             })}
           </CommandGroup>
+
+          <CommandGroup heading="Aksi Cepat">
+            <CommandItem
+              value="create new bot buat bot asisten baru"
+              onSelect={() => {
+                setOpenCommand(false);
+                if (isMobile) setOpenMobile(false);
+                setOpenCreateBot(true);
+              }}
+              className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer"
+            >
+              <div className="size-8 rounded-lg flex items-center justify-center bg-muted/20 text-muted-foreground shrink-0">
+                <PlusIcon className="size-4" />
+              </div>
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="font-medium text-xs sm:text-sm text-foreground">
+                  Create new bot
+                </span>
+                <span className="text-xs text-muted-foreground font-normal">
+                  Buat asisten AI baru dengan sandbox khusus
+                </span>
+              </div>
+            </CommandItem>
+
+            <CommandItem
+              value="create group chat buat obrolan grup tim baru"
+              onSelect={() => {
+                setOpenCommand(false);
+                if (isMobile) setOpenMobile(false);
+                if (onCreateGroupChat) {
+                  onCreateGroupChat();
+                } else {
+                  setOpenCreateGroupChat(true);
+                }
+              }}
+              className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer"
+            >
+              <div className="size-8 rounded-lg flex items-center justify-center bg-muted/20 text-muted-foreground shrink-0">
+                <UsersIcon className="size-4" />
+              </div>
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="font-medium text-xs sm:text-sm text-foreground">
+                  Create group chat
+                </span>
+                <span className="text-xs text-muted-foreground font-normal">
+                  Kolaborasikan beberapa bot dalam satu ruang obrolan
+                </span>
+              </div>
+            </CommandItem>
+
+            <CommandItem
+              value="pengaturan settings model api memory memori"
+              onSelect={() => {
+                setOpenCommand(false);
+                if (isMobile) setOpenMobile(false);
+                router.push("/settings");
+              }}
+              className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer"
+            >
+              <div className="size-8 rounded-lg flex items-center justify-center bg-muted/20 text-muted-foreground shrink-0">
+                <SettingsIcon className="size-4" />
+              </div>
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="font-medium text-xs sm:text-sm text-foreground">
+                  Pengaturan & Memori AI
+                </span>
+                <span className="text-xs text-muted-foreground font-normal">
+                  Kelola model, API key, dan MEMORY.md per bot
+                </span>
+              </div>
+            </CommandItem>
+          </CommandGroup>
         </CommandList>
       </CommandDialog>
 

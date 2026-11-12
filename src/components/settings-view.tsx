@@ -7,11 +7,14 @@ import {
   testModelConnection,
   runSystemDiagnosticsAction,
   getSandboxMemoryPreviewAction,
+  saveSandboxMemoryAction,
   type UserSettingsData,
   type DiagnosticItem,
+  type BotMemoryOption,
 } from "@/action/settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { NativeSelect } from "@/components/ui/native-select";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -95,9 +98,16 @@ export function SettingsView({ initialSettings, initialModels = [] }: SettingsVi
   const [isDiagnosing, setIsDiagnosing] = React.useState(false);
   const [diagnostics, setDiagnostics] = React.useState<DiagnosticItem[]>([]);
 
-  // Sandbox Memory preview state
+  // Sandbox Memory preview & editor state
   const [isLoadingMemory, setIsLoadingMemory] = React.useState(false);
+  const [isSavingMemory, setIsSavingMemory] = React.useState(false);
   const [memoryContent, setMemoryContent] = React.useState<string | null>(null);
+  const [memoryBots, setMemoryBots] = React.useState<BotMemoryOption[]>([]);
+  const [selectedMemoryBotId, setSelectedMemoryBotId] = React.useState<string>("");
+  const [memoryFeedback, setMemoryFeedback] = React.useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const [hasCopiedMemory, setHasCopiedMemory] = React.useState(false);
 
   // Match active preset
@@ -221,19 +231,61 @@ export function SettingsView({ initialSettings, initialModels = [] }: SettingsVi
     }
   };
 
-  const handleLoadMemory = async () => {
+  const handleLoadMemory = async (targetBotId?: string) => {
     setIsLoadingMemory(true);
+    setMemoryFeedback(null);
     try {
-      const res = await getSandboxMemoryPreviewAction();
+      const res = await getSandboxMemoryPreviewAction(
+        targetBotId ?? (selectedMemoryBotId || undefined)
+      );
       if (res.success && res.data) {
         setMemoryContent(res.data.content);
+        if (res.data.availableBots) {
+          setMemoryBots(res.data.availableBots);
+        }
+        if (res.data.botId) {
+          setSelectedMemoryBotId(res.data.botId);
+        }
       } else {
-        setMemoryContent(res.error || "Belum ada berkas MEMORY.md yang tersimpan di sandbox.");
+        setMemoryContent(
+          res.error || "Belum ada berkas MEMORY.md yang tersimpan di sandbox."
+        );
       }
     } catch {
       setMemoryContent("Gagal mengambil data memori.");
     } finally {
       setIsLoadingMemory(false);
+    }
+  };
+
+  const handleSaveMemory = async () => {
+    if (!selectedMemoryBotId || memoryContent === null) return;
+    setIsSavingMemory(true);
+    setMemoryFeedback(null);
+    try {
+      const res = await saveSandboxMemoryAction({
+        botId: selectedMemoryBotId,
+        content: memoryContent,
+      });
+      if (res.success) {
+        setMemoryFeedback({
+          type: "success",
+          message: res.message || "MEMORY.md berhasil disimpan",
+        });
+        setTimeout(() => setMemoryFeedback(null), 3500);
+      } else {
+        setMemoryFeedback({
+          type: "error",
+          message: res.error || "Gagal menyimpan MEMORY.md",
+        });
+      }
+    } catch {
+      setMemoryFeedback({
+        type: "error",
+        message: "Terjadi kesalahan saat menyimpan MEMORY.md",
+      });
+    } finally {
+      setIsSavingMemory(false);
     }
   };
 
@@ -308,6 +360,9 @@ export function SettingsView({ initialSettings, initialModels = [] }: SettingsVi
                       if (item.id === "diagnostics" && diagnostics.length === 0) {
                         handleRunDiagnostics();
                       }
+                      if (item.id === "appearance" && memoryContent === null && !isLoadingMemory) {
+                        handleLoadMemory();
+                      }
                     }}
                     className={cn(
                       "px-3.5 py-1.5 text-xs rounded-full whitespace-nowrap transition-colors",
@@ -334,6 +389,9 @@ export function SettingsView({ initialSettings, initialModels = [] }: SettingsVi
                       setActiveTab(item.id);
                       if (item.id === "diagnostics" && diagnostics.length === 0) {
                         handleRunDiagnostics();
+                      }
+                      if (item.id === "appearance" && memoryContent === null && !isLoadingMemory) {
+                        handleLoadMemory();
                       }
                     }}
                     className={cn(
@@ -685,57 +743,122 @@ export function SettingsView({ initialSettings, initialModels = [] }: SettingsVi
                     </NativeSelect>
                   </div>
 
-                  {/* Memory Inspector Section */}
-                  <div className="py-4 space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  {/* Memory Inspector & Per-Bot Editor Section */}
+                  <div className="py-4 space-y-3.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="space-y-0.5 max-w-sm">
                         <span className="text-sm font-normal text-foreground">
                           Catatan Memori Jangka Panjang (MEMORY.md)
                         </span>
                         <p className="text-xs text-muted-foreground leading-normal">
-                          Isi berkas memori sandbox yang dibaca agen pada setiap awal percakapan.
+                          Pilih bot untuk meninjau, mengedit, atau memperbarui ingatan jangka panjangnya di dalam sandbox.
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {memoryContent && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleCopyMemory}
-                            className="h-8 text-xs rounded-full font-normal text-muted-foreground hover:text-foreground"
+                      <div className="flex flex-wrap items-center gap-2">
+                        {memoryBots.length > 0 && (
+                          <NativeSelect
+                            aria-label="Pilih bot untuk MEMORY.md"
+                            value={selectedMemoryBotId}
+                            onChange={(e) => {
+                              const nextId = e.target.value;
+                              setSelectedMemoryBotId(nextId);
+                              handleLoadMemory(nextId);
+                            }}
+                            className="w-44 text-xs"
                           >
-                            {hasCopiedMemory ? (
-                              <>
-                                <CheckIcon className="size-3 mr-1 text-foreground" />
-                                Tersalin
-                              </>
-                            ) : (
-                              <>
-                                <CopyIcon className="size-3 mr-1" />
-                                Salin
-                              </>
-                            )}
-                          </Button>
+                            {memoryBots.map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {b.name} ({b.job})
+                              </option>
+                            ))}
+                          </NativeSelect>
                         )}
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={handleLoadMemory}
+                          onClick={() => handleLoadMemory()}
                           disabled={isLoadingMemory}
                           className="h-8 text-xs rounded-full font-normal border-border/50 bg-transparent hover:bg-muted/30"
                         >
                           {isLoadingMemory ? (
                             <Loader2Icon className="size-3 mr-1 animate-spin" />
                           ) : null}
-                          Muat Catatan
+                          {memoryContent === null ? "Muat Catatan" : "Muat Ulang"}
                         </Button>
                       </div>
                     </div>
 
-                    {memoryContent && (
-                      <pre className="p-3.5 bg-muted/20 border border-border/40 rounded-xl text-xs font-mono text-muted-foreground leading-relaxed max-h-64 overflow-y-auto whitespace-pre-wrap select-text">
-                        {memoryContent}
-                      </pre>
+                    {memoryContent !== null && (
+                      <div className="space-y-2.5">
+                        <Textarea
+                          value={memoryContent}
+                          onChange={(e) => setMemoryContent(e.target.value)}
+                          rows={10}
+                          disabled={isLoadingMemory || isSavingMemory}
+                          placeholder="# 🧠 MEMORY.md..."
+                          className="w-full p-3.5 bg-muted/20 border border-border/50 rounded-xl text-xs font-mono text-foreground leading-relaxed min-h-[220px] max-h-96 resize-y focus-visible:ring-1 focus-visible:ring-ring"
+                        />
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleCopyMemory}
+                              className="h-8 text-xs rounded-full font-normal text-muted-foreground hover:text-foreground"
+                            >
+                              {hasCopiedMemory ? (
+                                <>
+                                  <CheckIcon className="size-3 mr-1 text-foreground" />
+                                  Tersalin
+                                </>
+                              ) : (
+                                <>
+                                  <CopyIcon className="size-3 mr-1" />
+                                  Salin
+                                </>
+                              )}
+                            </Button>
+
+                            {memoryFeedback && (
+                              <span
+                                className={cn(
+                                  "text-xs",
+                                  memoryFeedback.type === "success"
+                                    ? "text-muted-foreground"
+                                    : "text-destructive"
+                                )}
+                              >
+                                {memoryFeedback.message}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={handleSaveMemory}
+                              disabled={
+                                isSavingMemory ||
+                                isLoadingMemory ||
+                                !selectedMemoryBotId
+                              }
+                              className="h-8 px-4 text-xs font-normal rounded-full bg-foreground text-background hover:bg-foreground/90 transition-colors"
+                            >
+                              {isSavingMemory ? (
+                                <>
+                                  <Loader2Icon className="size-3 mr-1.5 animate-spin" />
+                                  Menyimpan Memori...
+                                </>
+                              ) : (
+                                "Simpan MEMORY.md"
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>

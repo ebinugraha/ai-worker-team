@@ -2,17 +2,21 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   chat,
-  defaultStorage,
   type InferChatUIMessageFromTools,
 } from "@trigger.dev/sdk/ai";
+import { dbTranscriptStorage } from "@/lib/transcript-storage";
 import { createOpenAI } from "@ai-sdk/openai";
 import { type ModelMessage } from "@ai-sdk/provider-utils";
-import { stepCountIs, type JSONValue } from "ai";
+import { stepCountIs, hasToolCall, type JSONValue } from "ai";
 import { db, bots, chats, chatMembers, userSettings } from "@/db";
 import { eq } from "drizzle-orm";
 import { formatChatPreview } from "@/lib/clean-text";
 import { decryptApiKey } from "@/lib/encryption";
-import { sandboxTools, sandboxContextStorage } from "./tools";
+import {
+  sandboxTools,
+  sandboxContextStorage,
+  type SandboxContext,
+} from "./tools";
 import { ensureSandboxActive, withSandboxLock } from "@/lib/daytona";
 
 export type ChatAgentUIMessage = InferChatUIMessageFromTools<
@@ -371,7 +375,7 @@ export function pruneMessageHistory(
 
 export const chatAgent = chat.agent({
   id: "chat-agent",
-  storage: defaultStorage,
+  storage: dbTranscriptStorage,
   tools: sandboxTools,
   run: async ({ messages, tools, chatId, signal, streamText, clientData, ctx }) => {
     const requestedBotId = (clientData as { botId?: string } | undefined)?.botId;
@@ -500,7 +504,53 @@ export const chatAgent = chat.agent({
     }
 
     // 2. Identify the active bot for this turn
-    if (requestedBotId) {
+    // First, check if the latest user message in a group chat explicitly @mentions a member bot
+    let mentionedBot: typeof activeBot = null;
+    if (isGroup && groupMembers.length > 0 && messages.length > 0) {
+      const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+      if (lastUserMsg) {
+        const lastUserText =
+          typeof lastUserMsg.content === "string"
+            ? lastUserMsg.content
+            : Array.isArray(lastUserMsg.content)
+            ? lastUserMsg.content
+                .map((p: unknown) =>
+                  typeof p === "object" &&
+                  p !== null &&
+                  "type" in p &&
+                  p.type === "text" &&
+                  "text" in p
+                    ? String(p.text)
+                    : ""
+                )
+                .join(" ")
+            : "";
+
+        if (lastUserText) {
+          const cleanLower = lastUserText
+            .split("<!--attachments:")[0]
+            .toLowerCase();
+          // Match @BotName (longest name match first)
+          const sortedMembers = [...groupMembers].sort(
+            (a, b) => b.name.length - a.name.length
+          );
+          for (const member of sortedMembers) {
+            const mLower = member.name.toLowerCase();
+            if (
+              cleanLower.includes(`@${mLower}`) ||
+              new RegExp(`\\b(?:hai|halo|tolong|tanya|oper ke)\\s+${mLower.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(cleanLower)
+            ) {
+              mentionedBot = member;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (mentionedBot) {
+      activeBot = mentionedBot;
+    } else if (requestedBotId) {
       if (isGroup && groupMembers.length > 0) {
         activeBot = groupMembers.find((b) => b.id === requestedBotId) ?? null;
       }
@@ -564,31 +614,32 @@ export const chatAgent = chat.agent({
       groupMembers = [activeBot];
     }
 
-    // Attempt to load persistent memory (MEMORY.md) from the active bot's Daytona sandbox
-    let botMemoryContent: string | null = null;
-    if (activeBot?.sandboxId) {
+    // Helper to load MEMORY.md for any bot sandbox
+    const loadBotMemory = async (sandboxId: string | null | undefined): Promise<string | null> => {
+      if (!sandboxId) return null;
       try {
-        const sb = await ensureSandboxActive(activeBot.sandboxId);
+        const sb = await ensureSandboxActive(sandboxId);
         const buf = await sb.fs.downloadFile("MEMORY.md");
         const text = buf.toString("utf-8").trim();
-        if (text) {
-          botMemoryContent = text;
-        }
+        return text || null;
       } catch {
-        // If MEMORY.md does not exist yet or failed to download, initialize it
         try {
-          const sb = await ensureSandboxActive(activeBot.sandboxId);
+          const sb = await ensureSandboxActive(sandboxId);
           await sb.fs.uploadFile(Buffer.from(""), "MEMORY.md");
         } catch {
           // ignore fallback initialization error
         }
+        return null;
       }
-    }
+    };
 
-    // Ensure all attachments sent by the user in this conversation are synced into the active bot's sandbox
-    if (activeBot?.sandboxId) {
+    let botMemoryContent = await loadBotMemory(activeBot?.sandboxId);
+
+    // Helper to sync user attachments into a bot's sandbox
+    const syncAttachmentsToSandbox = async (sandboxId: string | null | undefined) => {
+      if (!sandboxId) return;
       try {
-        const sb = await ensureSandboxActive(activeBot.sandboxId);
+        const sb = await ensureSandboxActive(sandboxId);
 
         for (const msg of messages) {
           if (msg.role === "user") {
@@ -653,25 +704,32 @@ export const chatAgent = chat.agent({
       } catch (syncErr) {
         console.warn("Attachment sandbox auto-sync error:", syncErr);
       }
-    }
+    };
 
-    const systemPromptParts: string[] = [
-      `=== IDENTITY & JARVIS-GRADE COGNITIVE AGENCY ===
-You are ${activeBot ? activeBot.name : "Jarvis"}, an elite Autonomous AI Partner, Systems Architect, and Computational Engineer with J.A.R.V.I.S.-grade cognitive agency, technical brilliance, and proactive execution.
-${activeBot ? `Role & Job: ${activeBot.job}` : ""}
-${activeBot?.instruction?.trim() ? `Specialty & Directives:\n${activeBot.instruction.trim()}` : ""}
-${activeBot?.sandboxId ? `Active Sandbox Environment: Connected to an isolated Linux container (Sandbox ID: ${activeBot.sandboxId}) with root-level terminal, high-speed internet, and VNC desktop.` : ""}
+    await syncAttachmentsToSandbox(activeBot?.sandboxId);
 
-YOUR OPERATING STANDARD:
-- Unrivaled Competence & High Agency: You do not just discuss solutions—you actively execute them. You inspect real files, run diagnostics, install dependencies, compile, test, and deliver finished, verified results.
-- Razor-Sharp Perception: You never hallucinate when you can verify with tools.
-- Decisive & "Gercep": When the user gives a goal or asks a question, you act immediately and thoroughly without unnecessary hesitation or asking obvious clarifying questions if you can discover the answers yourself.`
-    ];
+    const buildSystemInstruction = (
+      bot: typeof activeBot,
+      memoryText: string | null
+    ): string => {
+      const parts: string[] = [
+        `=== IDENTITY & JARVIS-GRADE COGNITIVE AGENCY ===
+You are ${bot ? bot.name : "Jarvis"}, an elite Autonomous AI Partner, Principal Systems Architect, and Computational Engineer with J.A.R.V.I.S.-grade cognitive agency, technical brilliance, and proactive execution.
+${bot ? `Role & Job: ${bot.job}` : ""}
+${bot?.instruction?.trim() ? `Specialty & Directives:\n${bot.instruction.trim()}` : ""}
+${bot?.sandboxId ? `Active Sandbox Environment: Connected to an isolated Linux container (Sandbox ID: ${bot.sandboxId}) with root-level terminal, high-speed internet, and VNC desktop.` : ""}
 
-    if (isGroup && activeBot) {
-      const otherBots = groupMembers.filter((m) => m.id !== activeBot.id);
+YOUR OPERATING STANDARD (ZERO-TOLERANCE FOR SHALLOW OR LAZY RESPONSES):
+- Unrivaled Competence & High Agency: You do not just discuss or advise—you actively execute, verify, and deliver finished solutions. You inspect real files, run diagnostics, install dependencies, compile, test, and verify results before answering.
+- Anti-Hallucination & Ground-Truth First: NEVER claim you created a file, ran a command, or fixed a bug without actually invoking the tool (\`file_system\`, \`bash_exec\`, \`computer_use\`) and verifying its output. Never guess file contents or directory structures—list or read them first!
+- Context Awareness & Precision: Read the user's request carefully. Address the exact problem asked with deep technical accuracy, clean code, and complete explanations without filler or repetitive fluff.
+- Decisive & "Gercep": Act immediately and thoroughly without asking obvious clarifying questions when you can discover the answers yourself via tools.`,
+      ];
 
-      systemPromptParts.push(`=== GROUP CHAT COLLABORATION ===
+      if (isGroup && bot) {
+        const otherBots = groupMembers.filter((m) => m.id !== bot.id);
+
+        parts.push(`=== GROUP CHAT COLLABORATION ===
 You are currently participating in a shared group chat named "${chatName || "Team Group Chat"}".
 You are collaborating with a team of specialized AI bots and the human user in this workspace.
 
@@ -693,12 +751,12 @@ ${
 
 COLLABORATION & HANDOFF RULES:
 1. PRIORITIZE DIRECT EXECUTION: If you can handle or assist with the task using your reasoning and sandbox tools, EXECUTE IT DIRECTLY. Do not deflect or bounce tasks across teammates unnecessarily.
-2. DELIBERATE DELEGATION: ONLY hand off if the user explicitly requests another member (e.g., "tanyakan pada Wong", "oper ke Hemingway") or if the problem strictly falls into another member's exclusive specialty.
-3. SEAMLESS TAKEOVER: When you invoke \`handoff\`, ensure a seamless transition so the user receives an immediate, helpful response.`);
-    }
+2. DELIBERATE DELEGATION: ONLY call \`handoff\` if the user explicitly requests another member (e.g., "@NamaBot", "tanyakan pada Wong", "oper ke Hemingway") or if the problem strictly falls into another member's exclusive specialty.
+3. AUTO-RELAY TAKEOVER: When a teammate hands off a task to you, the system automatically relays execution to you in the same turn. Immediately execute the task thoroughly—NEVER hand it back or bounce it again!`);
+      }
 
-    if (activeBot) {
-      systemPromptParts.push(`=== PERSISTENT SECOND BRAIN & CONTINUOUS SELF-LEARNING (MEMORY.md) ===
+      if (bot) {
+        parts.push(`=== PERSISTENT SECOND BRAIN & CONTINUOUS SELF-LEARNING (MEMORY.md) ===
 Your sandbox contains a durable, persistent second brain at "MEMORY.md". It acts as your permanent long-term memory across all chats and sessions.
 - FIRST-CLASS SELF-LEARNING TOOL (\`save_memory\`):
   Whenever you discover or learn:
@@ -712,22 +770,27 @@ Your sandbox contains a durable, persistent second brain at "MEMORY.md". It acts
 - CROSS-SESSION KNOWLEDGE RECALL:
   When the user asks about previous discussions, rules, or facts, consult your MEMORY.md!`);
 
-      if (botMemoryContent) {
-        systemPromptParts.push(`=== CURRENT RECALLED MEMORY FROM YOUR SANDBOX (MEMORY.md) ===
+        if (memoryText) {
+          parts.push(`=== CURRENT RECALLED MEMORY FROM YOUR SANDBOX (MEMORY.md) ===
 The following durable facts are currently active from your "MEMORY.md":
 """
-${botMemoryContent}
+${memoryText}
 """
 You have already recalled this information and can reference it directly when replying to the user!`);
-      }
+        }
 
-      systemPromptParts.push(`=== CORE OPERATING PROTOCOL: HIGH-AGENCY & PROACTIVE EXECUTION ("GERCEP") ===
+        parts.push(`=== CORE OPERATING PROTOCOL: HIGH-AGENCY & PROACTIVE EXECUTION ("GERCEP") ===
 1. HIGH AGENCY & DIRECT ACTION:
    - When the user asks you to create, fix, debug, test, or build something, DO NOT merely list instructions for the user to follow. You have full root access to the Linux sandbox: inspect the files, run terminal commands, write the code, and verify it yourself!
    - Proactively fix obstacles: if a package is missing, install it; if a port is in use, find the process; if a test fails, analyze the stack trace and patch the code.
    - Never surrender ("Dilarang Pasrah"): if a command fails or an approach errors out, diagnose the root cause and try an alternative. Never repeat an identical failed command blindly.
 
-2. STRUCTURED CHAIN-OF-THOUGHT REASONING:
+2. BACKGROUND SERVERS & LONG-RUNNING PROCESSES (CRITICAL):
+   - NEVER run blocking servers (\`npm run dev\`, \`python3 -m http.server\`, \`vite\`, \`next dev\`, \`flask run\`) in the foreground of \`bash_exec\`, or the command will hang until timeout!
+   - ALWAYS start long-running servers in the background with output redirection and verify startup:
+     \`nohup <command> > /tmp/server.log 2>&1 & sleep 2 && cat /tmp/server.log\`
+
+3. STRUCTURED CHAIN-OF-THOUGHT REASONING:
    - For non-trivial engineering tasks or multi-step tool executions, structure your thinking inside a \`<thought>\` block:
      * **Tujuan & Analisis:** What is the core goal and expected outcome?
      * **Observasi Status:** What is the current terminal output, file content, or system state?
@@ -735,17 +798,11 @@ You have already recalled this information and can reference it directly when re
      * **Verifikasi:** Did the previous step succeed? What proves it worked?
    - In simple conversational turns or direct explanations, communicate directly without forced thought tags.
 
-3. 4-PHASE SYSTEMATIC DEBUGGING (NEVER GUESS):
+4. 4-PHASE SYSTEMATIC DEBUGGING (NEVER GUESS):
    - Phase 1: Root Cause Investigation — Read the full error message and stack trace. Never skip lines or guess. Trace data flow upstream to where the bad value originates.
    - Phase 2: Pattern Analysis — Compare working vs broken code or references in the codebase.
    - Phase 3: Ranked Hypotheses — Form 2-3 falsifiable hypotheses before changing code. Test the most likely one with a minimal probe.
    - Phase 4: Surgical Fix & Regression Verification — Fix root cause with \`file_system\` (\`action: "edit"\` or \`editFile\`). Run tests/builds to ensure zero regressions.
-
-4. PLAN-DO-CHECK-ACT (PDCA) ITERATIVE CYCLE:
-   - **Plan:** Define clear goal and verifiable criteria.
-   - **Do:** Implement changes in small, focused steps.
-   - **Check:** Inspect outputs, test results, or screenshots.
-   - **Act:** If successful, standardize (call \`save_memory\`). If unsuccessful, learn, refine hypothesis, and run the next cycle.
 
 5. TOOL SELECTION & SANDBOX CAPABILITIES:
    - Terminal & CLI: ALWAYS use \`bash_exec\` for all terminal operations (running builds, git, node, python, testing, inspecting processes).
@@ -770,17 +827,20 @@ You have already recalled this information and can reference it directly when re
 8. COMMUNICATION & ELEGANCE:
    - Communicate in clear, sharp, intelligent Indonesian (or the user's language).
    - Be concise, direct, and authoritative: lead with the answer or action, not boilerplate preamble. Finished work gets a crisp summary of what was accomplished and verified.`);
-    } else {
-      systemPromptParts.push("You are a helpful and intelligent AI teammate.");
-    }
+      } else {
+        parts.push("You are a helpful and intelligent AI teammate.");
+      }
 
-    const systemInstruction = systemPromptParts.join("\n\n");
+      return parts.join("\n\n");
+    };
+
+    let systemInstruction = buildSystemInstruction(activeBot, botMemoryContent);
 
     if (activeBot) {
       chat.setUIMessageStreamOptions({
         messageMetadata: () => ({
-          botId: activeBot.id,
-          botName: activeBot.name,
+          botId: activeBot!.id,
+          botName: activeBot!.name,
         }),
       });
     }
@@ -856,10 +916,19 @@ You have already recalled this information and can reference it directly when re
       }
     }
 
+    const contextState: SandboxContext = {
+      chatId: chatId ?? "",
+      sandboxId: activeBot?.sandboxId ?? null,
+      isGroup,
+      memberBots: groupMembers,
+      pendingHandoff: null,
+    };
+
     const runExecution = async () => {
       const currentMessages: ModelMessage[] = [...sanitizedMessages];
       const maxAutoContinues = 4;
       let loopCount = 0;
+      let handoffRelayCount = 0;
       let finalSummaryText = "";
 
       while (loopCount <= maxAutoContinues) {
@@ -872,7 +941,11 @@ You have already recalled this information and can reference it directly when re
           system: systemInstruction,
           messages: prunedMessages,
           tools,
-          stopWhen: stepCountIs(80),
+          stopWhen: [
+            stepCountIs(80),
+            hasToolCall("handoff"),
+            hasToolCall("finish_task"),
+          ],
           maxOutputTokens: 65536,
           temperature: 0.1,
           abortSignal: signal,
@@ -891,16 +964,73 @@ You have already recalled this information and can reference it directly when re
           break;
         }
 
-        // Check if finish_task or handoff was called in this turn
+        // AUTO-RELAY HANDOFF: If the active bot delegated to a teammate in a group chat,
+        // seamlessly switch activeBot to the target teammate and immediately execute their turn!
+        if (
+          isGroup &&
+          contextState.pendingHandoff &&
+          handoffRelayCount < 2
+        ) {
+          const handoffInfo = contextState.pendingHandoff;
+          contextState.pendingHandoff = null;
+          const nextBot = groupMembers.find(
+            (b) => b.id === handoffInfo.targetBotId
+          );
+
+          if (nextBot && nextBot.id !== activeBot?.id) {
+            if (message) {
+              chat.history.set([...chat.history.all(), message]);
+            }
+            const prevBotName = activeBot?.name || "Rekan Tim";
+            activeBot = nextBot;
+            contextState.sandboxId = nextBot.sandboxId;
+            handoffRelayCount++;
+
+            // Sync attachments & load memory for the newly activated teammate bot
+            await syncAttachmentsToSandbox(activeBot.sandboxId);
+            botMemoryContent = await loadBotMemory(activeBot.sandboxId);
+            systemInstruction = buildSystemInstruction(
+              activeBot,
+              botMemoryContent
+            );
+
+            chat.setUIMessageStreamOptions({
+              messageMetadata: () => ({
+                botId: activeBot!.id,
+                botName: activeBot!.name,
+              }),
+            });
+
+            currentMessages.push({
+              role: "assistant",
+              content: [
+                {
+                  type: "text",
+                  text: `[${prevBotName} mengalihkan tugas ke ${activeBot.name} (${activeBot.job}). Alasan: ${handoffInfo.reason}]`,
+                },
+              ],
+            });
+
+            currentMessages.push({
+              role: "user",
+              content: `[DELEGASI TIM OTOMATIS]: Halo ${activeBot.name}, rekan tim Anda (${prevBotName}) baru saja mendelegasikan tugas pengguna di atas kepada Anda karena alasan: "${handoffInfo.reason}". Sekarang adalah giliran Anda untuk langsung mengeksekusi dan menyelesaikan permintaan pengguna secara tuntas (jangan memanggil tool handoff lagi).`,
+            });
+
+            continue;
+          }
+        }
+
+        // Check if finish_task was called in this turn
         const didCallFinishTask = message?.parts?.some((p: unknown) => {
           if (typeof p !== "object" || p === null) return false;
           const rec = p as Record<string, unknown>;
           return (
-            (rec.type === "tool-call" || rec.type === "tool-result") &&
+            (rec.type === "tool-call" ||
+              rec.type === "tool-result" ||
+              rec.type === "tool-finish_task") &&
             (rec.toolName === "finish_task" ||
               rec.name === "finish_task" ||
-              rec.toolName === "handoff" ||
-              rec.name === "handoff")
+              rec.type === "tool-finish_task")
           );
         });
 
@@ -985,19 +1115,11 @@ You have already recalled this information and can reference it directly when re
       }
     };
 
-    return sandboxContextStorage.run(
-      {
-        chatId: chatId ?? "",
-        sandboxId: activeBot?.sandboxId ?? null,
-        isGroup,
-        memberBots: groupMembers,
-      },
-      () => {
-        if (activeBot?.sandboxId) {
-          return withSandboxLock(activeBot.sandboxId, runExecution);
-        }
-        return runExecution();
+    return sandboxContextStorage.run(contextState, () => {
+      if (activeBot?.sandboxId) {
+        return withSandboxLock(activeBot.sandboxId, runExecution);
       }
-    );
+      return runExecution();
+    });
   },
 });

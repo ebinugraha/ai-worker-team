@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { LandingPageView } from "@/components/landing-page-view";
 
 export const metadata: Metadata = {
-  title: "Genichiro - Autonomous AI Workers",
+  title: "Genichiro - Tim Asisten AI Pribadi Anda",
   description:
-    "Autonomous AI Workers for everything you build and execute. Reasoning, terminal execution, live visual desktop, and multi-agent squads powered by Daytona Linux sandboxes.",
+    "Buat asisten AI sesuai kebutuhan Anda, ajak berdiskusi atau bekerja bersama dalam satu grup untuk menyelesaikan pekerjaan harian dengan mudah.",
 };
 
 export default function LandingPage() {

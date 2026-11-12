@@ -77,66 +77,47 @@ function ActionCard({
     return null;
   }
 
-  const getBadgeStyle = () => {
-    return "bg-zinc-800 text-zinc-200 border-zinc-700/80";
-  };
-
   const getIcon = () => {
     switch (type) {
       case "CLICK":
-        return <MousePointerClickIcon className="size-3.5 text-zinc-300" />;
+        return <MousePointerClickIcon className="size-3.5 text-muted-foreground" />;
       case "TYPE":
-        return <KeyboardIcon className="size-3.5 text-zinc-300" />;
+        return <KeyboardIcon className="size-3.5 text-muted-foreground" />;
       case "KEY":
-        return <CommandIcon className="size-3.5 text-zinc-300" />;
+        return <CommandIcon className="size-3.5 text-muted-foreground" />;
       case "WAIT":
-        return <ClockIcon className="size-3.5 text-zinc-300" />;
+        return <ClockIcon className="size-3.5 text-muted-foreground" />;
       default:
-        return <PlayIcon className="size-3.5 text-zinc-300" />;
+        return <PlayIcon className="size-3.5 text-muted-foreground" />;
+    }
+  };
+
+  const getLabel = () => {
+    switch (type) {
+      case "CLICK":
+        return "Mengklik pada layar komputer";
+      case "TYPE":
+        return parsed?.text
+          ? `Mengetik "${parsed.text}"`
+          : "Mengetik pada layar";
+      case "KEY":
+        return "Menekan tombol papan ketik";
+      case "WAIT":
+        return "Menunggu sejenak";
+      default:
+        return parsed?.reason || "Menjalankan langkah";
     }
   };
 
   return (
-    <div className="my-2 rounded-xl border border-zinc-800/80 bg-zinc-900/70 p-3 shadow-xs transition-all">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider font-mono">
-          AKSI
-        </span>
-        <div
-          className={cn(
-            "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-semibold border",
-            getBadgeStyle()
-          )}
-        >
-          {getIcon()}
-          <span>{type || "RUN"}</span>
-        </div>
-
-        {parsed?.x !== undefined && parsed?.y !== undefined && (
-          <span className="inline-flex items-center text-xs font-mono text-zinc-300 bg-zinc-950/80 border border-zinc-800 px-2 py-0.5 rounded-md">
-            x: {parsed.x}, y: {parsed.y}
-          </span>
-        )}
-
-        {parsed?.text && (
-          <span className="inline-flex items-center text-xs font-mono text-zinc-300 bg-zinc-950/80 border border-zinc-800 px-2.5 py-0.5 rounded-md max-w-sm truncate">
-            {parsed.text}
-          </span>
-        )}
-
-        {parsed?.duration !== undefined && (
-          <span className="inline-flex items-center text-xs font-mono text-zinc-300 bg-zinc-950/80 border border-zinc-800 px-2 py-0.5 rounded-md">
-            {parsed.duration}s
-          </span>
-        )}
-      </div>
-
-      {parsed?.reason && (
-        <p className="mt-2 text-xs text-zinc-400 leading-relaxed italic border-t border-zinc-800/60 pt-1.5">
-          {parsed.reason}
-        </p>
-      )}
-    </div>
+    <Trace className="my-1">
+      <TraceLine>
+        <TraceIcon>{getIcon()}</TraceIcon>
+        <TraceTitle className="text-xs sm:text-[13px] font-sans text-muted-foreground">
+          {getLabel()}
+        </TraceTitle>
+      </TraceLine>
+    </Trace>
   );
 }
 
@@ -148,21 +129,19 @@ function ThoughtCard({
   isComplete?: boolean;
 }) {
   return (
-    <Trace className="my-2">
-      <TraceCollapsible defaultOpen={true}>
+    <Trace className="my-1.5">
+      <TraceCollapsible defaultOpen={false}>
         <TraceCollapsibleTrigger>
           <TraceLine status={!isComplete ? "running" : undefined}>
             <TraceIcon>
-              <BrainIcon className="size-3.5 text-zinc-400" />
+              <BrainIcon className="size-3.5 text-muted-foreground" />
             </TraceIcon>
-            <TraceTitle className="text-xs sm:text-sm font-semibold text-zinc-200">
-              {!isComplete
-                ? "Sedang menalar..."
-                : "Proses Penalaran (Thought)"}
+            <TraceTitle className="text-xs sm:text-[13px] font-sans text-muted-foreground">
+              {!isComplete ? "Sedang berpikir..." : "Proses berpikir"}
             </TraceTitle>
           </TraceLine>
         </TraceCollapsibleTrigger>
-        <TraceCollapsibleContent className="mt-1.5 pl-3.5 text-xs text-zinc-300 whitespace-pre-wrap border-l-2 border-zinc-700/80 ml-1 py-2.5 leading-relaxed bg-[#08080a] border border-zinc-800/60 rounded-r-xl font-mono select-text">
+        <TraceCollapsibleContent className="mt-1.5 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed font-sans select-text">
           {content}
         </TraceCollapsibleContent>
       </TraceCollapsible>

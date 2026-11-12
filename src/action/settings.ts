@@ -3,9 +3,13 @@
 import { auth as clerkAuth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { db, userSettings, bots } from "@/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { encryptApiKey, decryptApiKey } from "@/lib/encryption";
-import { getDaytonaClient } from "@/lib/daytona";
+import {
+  getDaytonaClient,
+  ensureSandboxActive,
+  createBotSandbox,
+} from "@/lib/daytona";
 
 export { encryptApiKey, decryptApiKey };
 
@@ -795,12 +799,24 @@ export async function runSystemDiagnosticsAction(input?: {
   }
 }
 
-export async function getSandboxMemoryPreviewAction(): Promise<
+export interface BotMemoryOption {
+  id: string;
+  name: string;
+  job: string;
+  avatar: string;
+  sandboxId: string | null;
+}
+
+export async function getSandboxMemoryPreviewAction(
+  requestedBotId?: string
+): Promise<
   ActionResult<{
     content: string;
+    botId?: string;
     botName?: string;
     sandboxId?: string;
     isInitialized: boolean;
+    availableBots: BotMemoryOption[];
   }>
 > {
   try {
@@ -810,52 +826,151 @@ export async function getSandboxMemoryPreviewAction(): Promise<
     }
 
     const userBots = await db
-      .select()
+      .select({
+        id: bots.id,
+        name: bots.name,
+        job: bots.job,
+        avatar: bots.avatar,
+        sandboxId: bots.sandboxId,
+      })
       .from(bots)
       .where(eq(bots.userId, userId))
-      .limit(5);
+      .orderBy(desc(bots.createdAt));
 
-    const botWithSandbox = userBots.find((b) => Boolean(b.sandboxId));
-    if (!botWithSandbox || !botWithSandbox.sandboxId) {
+    if (userBots.length === 0) {
       return {
         success: true,
         data: {
-          content: `# 🧠 Persistent Second Brain (MEMORY.md Preview)\n\n## 👤 User Profile & Directives\n- Boss: ebinugraha\n- Standar: High-Craft Developer Tools, No AI-Slop, Clean Monochromatic Tokens\n\n## 🏗️ Architecture & Project Decisions\n- Framework: Next.js 16 App Router (proxy.ts, PPR Suspense)\n- Database: Neon Serverless PostgreSQL with Drizzle ORM\n- Worker: Trigger.dev v3 background task runner\n\n## 💡 Learned Playbooks & Knowledge Base\n- Auto-nudge loop breaker aktif.\n- 4-phase systematic debugging & PDCA cycle terpasang.`,
-          botName: userBots[0]?.name || "Default Assistant",
+          content: `# 🧠 Persistent Second Brain (MEMORY.md)\n\nBelum ada bot yang dibuat. Buat bot terlebih dahulu untuk mulai merekam dan mengedit memori jangka panjang di sandbox.`,
+          botName: "Belum ada bot",
           isInitialized: false,
+          availableBots: [],
+        },
+      };
+    }
+
+    const targetBot =
+      (requestedBotId
+        ? userBots.find((b) => b.id === requestedBotId)
+        : undefined) ??
+      userBots.find((b) => Boolean(b.sandboxId)) ??
+      userBots[0];
+
+    if (!targetBot.sandboxId) {
+      return {
+        success: true,
+        data: {
+          content: `# 🧠 MEMORY.md (${targetBot.name})\n\n## 📌 Tugas & Instruksi Aktif\n- Bot ini belum memiliki berkas MEMORY.md aktif di sandbox. Anda dapat menulis catatan di sini dan klik "Simpan Memori" untuk menginisialisasinya.`,
+          botId: targetBot.id,
+          botName: targetBot.name,
+          isInitialized: false,
+          availableBots: userBots,
         },
       };
     }
 
     try {
-      const daytona = getDaytonaClient();
-      const sb = await daytona.get(botWithSandbox.sandboxId);
+      const sb = await ensureSandboxActive(targetBot.sandboxId);
       const buf = await sb.fs.downloadFile("MEMORY.md");
       const text = Buffer.from(buf).toString("utf-8");
       return {
         success: true,
         data: {
-          content: text || "# 🧠 MEMORY.md masih kosong. AI akan mencatat otomatis saat mengeksekusi tugas.",
-          botName: botWithSandbox.name,
-          sandboxId: botWithSandbox.sandboxId,
+          content:
+            text ||
+            `# 🧠 MEMORY.md (${targetBot.name})\n\n# 💡 Learned Playbooks & Knowledge Base\n- AI akan mencatat otomatis saat mengeksekusi tugas, atau Anda dapat menambahkan catatan secara manual di sini.`,
+          botId: targetBot.id,
+          botName: targetBot.name,
+          sandboxId: targetBot.sandboxId,
           isInitialized: true,
+          availableBots: userBots,
         },
       };
     } catch {
       return {
         success: true,
         data: {
-          content: `# 🧠 MEMORY.md (Sandbox: ${botWithSandbox.sandboxId})\n\nBerkas memori siap diakses dalam sandbox bot ${botWithSandbox.name}.`,
-          botName: botWithSandbox.name,
-          sandboxId: botWithSandbox.sandboxId,
+          content: `# 🧠 MEMORY.md (${targetBot.name})\n\n# 💡 Learned Playbooks & Knowledge Base\n- Berkas memori siap diisi dan disimpan ke dalam sandbox bot ${targetBot.name}.`,
+          botId: targetBot.id,
+          botName: targetBot.name,
+          sandboxId: targetBot.sandboxId,
           isInitialized: true,
+          availableBots: userBots,
         },
       };
     }
   } catch (err: unknown) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Gagal membaca MEMORY.md sandbox.",
+      error:
+        err instanceof Error ? err.message : "Gagal membaca MEMORY.md sandbox.",
+    };
+  }
+}
+
+export async function saveSandboxMemoryAction(input: {
+  botId: string;
+  content: string;
+}): Promise<
+  ActionResult<{
+    botId: string;
+    botName: string;
+    sandboxId: string;
+    content: string;
+  }>
+> {
+  try {
+    const { userId } = await clerkAuth();
+    if (!userId) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    if (!input.botId) {
+      return { success: false, error: "Pilih bot terlebih dahulu." };
+    }
+
+    const [bot] = await db
+      .select()
+      .from(bots)
+      .where(and(eq(bots.id, input.botId), eq(bots.userId, userId)))
+      .limit(1);
+
+    if (!bot) {
+      return {
+        success: false,
+        error: "Bot tidak ditemukan atau Anda tidak memiliki akses.",
+      };
+    }
+
+    let sandboxId = bot.sandboxId;
+    if (!sandboxId) {
+      sandboxId = await createBotSandbox(bot.name);
+      await db
+        .update(bots)
+        .set({ sandboxId })
+        .where(and(eq(bots.id, bot.id), eq(bots.userId, userId)));
+    }
+
+    const sb = await ensureSandboxActive(sandboxId);
+    await sb.fs.uploadFile(Buffer.from(input.content, "utf-8"), "MEMORY.md");
+
+    return {
+      success: true,
+      data: {
+        botId: bot.id,
+        botName: bot.name,
+        sandboxId,
+        content: input.content,
+      },
+      message: `MEMORY.md untuk ${bot.name} berhasil disimpan!`,
+    };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : "Gagal menyimpan MEMORY.md ke sandbox.",
     };
   }
 }

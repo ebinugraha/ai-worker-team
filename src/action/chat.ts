@@ -5,20 +5,49 @@ import { auth as triggerAuth } from "@trigger.dev/sdk";
 import { runs } from "@trigger.dev/sdk/v3";
 import {
   chat,
-  defaultStorage,
   type ChatStartSessionParams,
 } from "@trigger.dev/sdk/ai";
 import { revalidatePath } from "next/cache";
 import { db, chats, chatMembers, bots } from "@/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { formatChatPreview } from "@/lib/clean-text";
+import {
+  dbTranscriptStorage,
+  appendOptimisticMessageToDb,
+} from "@/lib/transcript-storage";
 import type { chatAgent } from "../../trigger/chat";
 
 const baseStartSession =
   chat.createStartSessionAction<typeof chatAgent>("chat-agent");
-const baseLoadTranscript = chat.createLoadTranscriptAction(defaultStorage, {
-  limit: 50,
-});
+const baseLoadTranscript = chat.createLoadTranscriptAction(
+  dbTranscriptStorage,
+  {
+    limit: 100,
+  }
+);
+
+async function verifyChatOwnership(
+  chatId: string,
+  userId: string
+): Promise<boolean> {
+  if (!chatId || !userId) return false;
+
+  const [ownedChat] = await db
+    .select({ id: chats.id })
+    .from(chats)
+    .where(and(eq(chats.id, chatId), eq(chats.userId, userId)))
+    .limit(1);
+
+  if (ownedChat) return true;
+
+  const [ownedBot] = await db
+    .select({ id: bots.id })
+    .from(bots)
+    .where(and(eq(bots.id, chatId), eq(bots.userId, userId)))
+    .limit(1);
+
+  return Boolean(ownedBot);
+}
 
 export async function startChatSession(
   params: ChatStartSessionParams<typeof chatAgent>
@@ -28,6 +57,13 @@ export async function startChatSession(
     throw new Error("Unauthorized");
   }
 
+  if (params.chatId) {
+    const isOwner = await verifyChatOwnership(params.chatId, userId);
+    if (!isOwner) {
+      throw new Error("Forbidden: Anda tidak memiliki akses ke obrolan ini.");
+    }
+  }
+
   const result = await baseStartSession(params);
   if (result && typeof result === "object" && "run" in result) {
     const runObj = (result as { run?: { id?: string } }).run;
@@ -35,7 +71,7 @@ export async function startChatSession(
       await db
         .update(chats)
         .set({ latestRunId: runObj.id })
-        .where(eq(chats.id, params.chatId))
+        .where(and(eq(chats.id, params.chatId), eq(chats.userId, userId)))
         .catch(() => {});
     }
   }
@@ -57,7 +93,7 @@ export async function stopChatGeneration(chatIdOrRunId: string): Promise<{
       const [chat] = await db
         .select({ latestRunId: chats.latestRunId })
         .from(chats)
-        .where(eq(chats.id, chatIdOrRunId))
+        .where(and(eq(chats.id, chatIdOrRunId), eq(chats.userId, userId)))
         .limit(1);
 
       if (chat?.latestRunId) {
@@ -87,6 +123,11 @@ export async function mintChatAccessToken(chatId: string) {
     throw new Error("Unauthorized");
   }
 
+  const isOwner = await verifyChatOwnership(chatId, userId);
+  if (!isOwner) {
+    throw new Error("Forbidden: Anda tidak memiliki akses ke sesi obrolan ini.");
+  }
+
   return triggerAuth.createPublicToken({
     scopes: {
       read: { sessions: chatId },
@@ -107,7 +148,27 @@ export async function loadChatTranscript(params: {
     throw new Error("Unauthorized");
   }
 
-  const result = await baseLoadTranscript(params);
+  if (params.chatId) {
+    const isOwner = await verifyChatOwnership(params.chatId, userId);
+    if (!isOwner) {
+      throw new Error("Forbidden: Anda tidak memiliki akses ke riwayat obrolan ini.");
+    }
+  }
+
+  const [result, publicAccessToken] = await Promise.all([
+    baseLoadTranscript(params),
+    params.chatId
+      ? triggerAuth
+          .createPublicToken({
+            scopes: {
+              read: { sessions: params.chatId },
+              write: { sessions: params.chatId },
+            },
+            expirationTime: "1h",
+          })
+          .catch(() => undefined)
+      : Promise.resolve(undefined),
+  ]);
   if (result && Array.isArray(result.messages)) {
     const seen = new Map<string, number>();
     for (let i = 0; i < result.messages.length; i++) {
@@ -147,7 +208,10 @@ export async function loadChatTranscript(params: {
     }
   }
 
-  return result;
+  return {
+    ...result,
+    publicAccessToken,
+  };
 }
 
 export interface ChatMemberBot {
@@ -342,11 +406,16 @@ export async function getChatWithMembersAction(
   chatId: string
 ): Promise<{ success: boolean; data?: ChatDetails; error?: string }> {
   try {
-    // 1. Check if chatId exists in chats table
+    const { userId } = await clerkAuth();
+    if (!userId) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    // 1. Check if chatId exists in chats table for this user
     const [existingChat] = await db
       .select()
       .from(chats)
-      .where(eq(chats.id, chatId))
+      .where(and(eq(chats.id, chatId), eq(chats.userId, userId)))
       .limit(1);
 
     if (existingChat && existingChat.kind === "group") {
@@ -375,7 +444,7 @@ export async function getChatWithMembersAction(
       };
     }
 
-    // 2. Check if chatId is a direct bot ID
+    // 2. Check if chatId is a direct bot ID owned by this user
     const [bot] = await db
       .select({
         id: bots.id,
@@ -386,7 +455,7 @@ export async function getChatWithMembersAction(
         sandboxId: bots.sandboxId,
       })
       .from(bots)
-      .where(eq(bots.id, chatId))
+      .where(and(eq(bots.id, chatId), eq(bots.userId, userId)))
       .limit(1);
 
     if (bot) {
@@ -452,23 +521,43 @@ export async function getUserGroupChatsAction(): Promise<{
       .where(and(eq(chats.userId, userId), eq(chats.kind, "group")))
       .orderBy(desc(chats.createdAt));
 
-    const results: GroupChatItem[] = [];
+    if (groupChats.length === 0) {
+      return { success: true, data: [] };
+    }
 
-    for (const chatItem of groupChats) {
-      const memberRows = await db
-        .select({
-          id: bots.id,
-          name: bots.name,
-          avatar: bots.avatar,
-          job: bots.job,
-          instruction: bots.instruction,
-          sandboxId: bots.sandboxId,
-        })
-        .from(chatMembers)
-        .innerJoin(bots, eq(chatMembers.botId, bots.id))
-        .where(eq(chatMembers.chatId, chatItem.id));
+    // Fetch all group members in a single query using inArray (eliminates N+1 queries)
+    const groupIds = groupChats.map((c) => c.id);
+    const allMemberRows = await db
+      .select({
+        chatId: chatMembers.chatId,
+        id: bots.id,
+        name: bots.name,
+        avatar: bots.avatar,
+        job: bots.job,
+        instruction: bots.instruction,
+        sandboxId: bots.sandboxId,
+      })
+      .from(chatMembers)
+      .innerJoin(bots, eq(chatMembers.botId, bots.id))
+      .where(inArray(chatMembers.chatId, groupIds));
 
-      results.push({
+    const membersByChatId = new Map<string, ChatMemberBot[]>();
+    for (const row of allMemberRows) {
+      const list = membersByChatId.get(row.chatId) ?? [];
+      list.push({
+        id: row.id,
+        name: row.name,
+        avatar: row.avatar,
+        job: row.job,
+        instruction: row.instruction,
+        sandboxId: row.sandboxId,
+      });
+      membersByChatId.set(row.chatId, list);
+    }
+
+    const results: GroupChatItem[] = groupChats.map((chatItem) => {
+      const memberRows = membersByChatId.get(chatItem.id) ?? [];
+      return {
         id: chatItem.id,
         name: chatItem.name || "Group Chat",
         avatars: memberRows.map((m) => m.avatar),
@@ -476,8 +565,8 @@ export async function getUserGroupChatsAction(): Promise<{
         lastMessagePreview: formatChatPreview(chatItem.lastMessagePreview),
         lastMessageAt: chatItem.lastMessageAt,
         createdAt: chatItem.createdAt,
-      });
-    }
+      };
+    });
 
     return { success: true, data: results };
   } catch (err) {
@@ -489,6 +578,10 @@ export async function getUserGroupChatsAction(): Promise<{
 export async function recordChatActivityAction(payload: {
   chatId: string;
   preview: string;
+  userMessage?: {
+    id: string;
+    text: string;
+  };
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const { userId } = await clerkAuth();
@@ -496,7 +589,7 @@ export async function recordChatActivityAction(payload: {
       return { success: false, error: "Unauthorized" };
     }
 
-    const { chatId, preview } = payload;
+    const { chatId, preview, userMessage } = payload;
     if (!chatId) {
       return { success: false, error: "Missing chatId" };
     }
@@ -506,9 +599,9 @@ export async function recordChatActivityAction(payload: {
     const now = new Date();
 
     const [existingChat] = await db
-      .select({ id: chats.id })
+      .select({ id: chats.id, userId: chats.userId })
       .from(chats)
-      .where(eq(chats.id, chatId))
+      .where(and(eq(chats.id, chatId), eq(chats.userId, userId)))
       .limit(1);
 
     if (existingChat) {
@@ -518,12 +611,12 @@ export async function recordChatActivityAction(payload: {
           lastMessagePreview: cleanText,
           lastMessageAt: now,
         })
-        .where(eq(chats.id, chatId));
+        .where(and(eq(chats.id, chatId), eq(chats.userId, userId)));
     } else {
       const [bot] = await db
         .select()
         .from(bots)
-        .where(eq(bots.id, chatId))
+        .where(and(eq(bots.id, chatId), eq(bots.userId, userId)))
         .limit(1);
 
       if (bot) {
@@ -546,6 +639,14 @@ export async function recordChatActivityAction(payload: {
           })
           .onConflictDoNothing();
       }
+    }
+
+    if (userMessage?.id && userMessage?.text) {
+      await appendOptimisticMessageToDb(chatId, {
+        id: userMessage.id,
+        role: "user",
+        parts: [{ type: "text", text: userMessage.text }],
+      });
     }
 
     revalidatePath("/", "layout");

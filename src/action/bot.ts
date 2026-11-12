@@ -127,27 +127,31 @@ export async function getUserBotsAction(): Promise<
       .where(eq(bots.userId, userId))
       .orderBy(desc(bots.createdAt));
 
-    // Ensure all user bots have entries in `chats` and `chat_members`
-    for (const bot of userBots) {
+    // Bulk ensure all user bots have entries in `chats` and `chat_members` (avoids N+1 queries)
+    if (userBots.length > 0) {
       await db
         .insert(chats)
-        .values({
-          id: bot.id,
-          userId,
-          kind: "direct",
-          name: bot.name,
-          createdAt: bot.createdAt,
-          lastMessageAt: bot.createdAt,
-        })
+        .values(
+          userBots.map((bot) => ({
+            id: bot.id,
+            userId,
+            kind: "direct" as const,
+            name: bot.name,
+            createdAt: bot.createdAt,
+            lastMessageAt: bot.createdAt,
+          }))
+        )
         .onConflictDoNothing();
 
       await db
         .insert(chatMembers)
-        .values({
-          chatId: bot.id,
-          botId: bot.id,
-          joinedAt: bot.createdAt,
-        })
+        .values(
+          userBots.map((bot) => ({
+            chatId: bot.id,
+            botId: bot.id,
+            joinedAt: bot.createdAt,
+          }))
+        )
         .onConflictDoNothing();
     }
 
@@ -349,7 +353,7 @@ export async function deleteBotAction(
 }
 
 /**
- * Returns a signed VNC URL for a bot's Daytona sandbox.
+ * Returns a signed VNC URL for a bot's Daytona sandbox after verifying ownership.
  */
 export async function getBotVncUrlAction(
   sandboxId: string
@@ -362,6 +366,20 @@ export async function getBotVncUrlAction(
 
     if (!sandboxId) {
       return { success: false, error: "Sandbox ID is required" };
+    }
+
+    // Verify that this sandboxId belongs to a bot owned by the authenticated user
+    const [ownedBot] = await db
+      .select({ id: bots.id })
+      .from(bots)
+      .where(and(eq(bots.sandboxId, sandboxId), eq(bots.userId, userId)))
+      .limit(1);
+
+    if (!ownedBot) {
+      return {
+        success: false,
+        error: "Forbidden: Anda tidak memiliki akses ke sandbox ini.",
+      };
     }
 
     const vncUrl = await getSandboxVncUrl(sandboxId);

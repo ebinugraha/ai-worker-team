@@ -19,8 +19,17 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { SeedAvatar } from "@/components/seed-avatar";
 import { getBotVncUrlAction } from "@/action/bot";
 import { cn } from "@/lib/utils";
+
+export interface VncMemberBot {
+  id: string;
+  name: string;
+  avatar: string;
+  job?: string;
+  sandboxId?: string | null;
+}
 
 export interface DaytonaVncViewerProps {
   sandboxId?: string | null;
@@ -29,6 +38,9 @@ export interface DaytonaVncViewerProps {
   className?: string;
   isMobileView?: boolean;
   onClose?: () => void;
+  memberBots?: VncMemberBot[];
+  selectedBotId?: string;
+  onSelectBot?: (botId: string) => void;
 }
 
 export function DaytonaVncViewer({
@@ -38,15 +50,31 @@ export function DaytonaVncViewer({
   className,
   isMobileView = false,
   onClose,
+  memberBots = [],
+  selectedBotId,
+  onSelectBot,
 }: DaytonaVncViewerProps) {
-  const [vncUrl, setVncUrl] = React.useState<string | null>(initialVncUrl);
-  const [isLoading, setIsLoading] = React.useState<boolean>(!initialVncUrl && Boolean(sandboxId));
+  const [vncState, setVncState] = React.useState<{
+    sandboxId: string | null | undefined;
+    url: string | null;
+    error: string | null;
+    loading: boolean;
+  }>({
+    sandboxId,
+    url: initialVncUrl,
+    error: null,
+    loading: !initialVncUrl && Boolean(sandboxId),
+  });
   const [isReloading, setIsReloading] = React.useState<boolean>(false);
-  const [error, setError] = React.useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = React.useState<boolean>(false);
   const [isTakeoverMode, setIsTakeoverMode] = React.useState<boolean>(false);
   const [isMobileMinimized, setIsMobileMinimized] = React.useState<boolean>(false);
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
+
+  const isSameSandbox = vncState.sandboxId === sandboxId;
+  const vncUrl = isSameSandbox ? vncState.url : null;
+  const error = isSameSandbox ? vncState.error : null;
+  const isLoading = isSameSandbox ? vncState.loading : Boolean(sandboxId);
 
   /**
    * Pre-authorizes the Daytona proxy preview warning page.
@@ -70,24 +98,40 @@ export function DaytonaVncViewer({
   // Fetch VNC URL from server action
   const fetchVncUrl = React.useCallback(async () => {
     if (!sandboxId) return;
-    setIsLoading(true);
-    setError(null);
+    setVncState({
+      sandboxId,
+      url: null,
+      error: null,
+      loading: true,
+    });
 
     try {
       const result = await getBotVncUrlAction(sandboxId);
       if (result.success && result.data?.vncUrl) {
         const url = result.data.vncUrl;
         await preAuthorizePreviewUrl(url);
-        setVncUrl(url);
+        setVncState({
+          sandboxId,
+          url,
+          error: null,
+          loading: false,
+        });
       } else {
-        setError(result.error || "Gagal menghubungkan ke desktop VNC.");
+        setVncState({
+          sandboxId,
+          url: null,
+          error: result.error || "Gagal menghubungkan ke desktop VNC.",
+          loading: false,
+        });
       }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Terjadi kesalahan saat memuat VNC."
-      );
-    } finally {
-      setIsLoading(false);
+      setVncState({
+        sandboxId,
+        url: null,
+        error:
+          err instanceof Error ? err.message : "Terjadi kesalahan saat memuat VNC.",
+        loading: false,
+      });
     }
   }, [sandboxId, preAuthorizePreviewUrl]);
 
@@ -101,19 +145,33 @@ export function DaytonaVncViewer({
             const url = result.data.vncUrl;
             await preAuthorizePreviewUrl(url);
             if (!ignore) {
-              setVncUrl(url);
+              setVncState({
+                sandboxId,
+                url,
+                error: null,
+                loading: false,
+              });
             }
           } else {
-            setError(result.error || "Gagal menghubungkan ke desktop VNC.");
+            setVncState({
+              sandboxId,
+              url: null,
+              error: result.error || "Gagal menghubungkan ke desktop VNC.",
+              loading: false,
+            });
           }
-          setIsLoading(false);
         })
         .catch((err) => {
           if (ignore) return;
-          setError(
-            err instanceof Error ? err.message : "Terjadi kesalahan saat memuat VNC."
-          );
-          setIsLoading(false);
+          setVncState({
+            sandboxId,
+            url: null,
+            error:
+              err instanceof Error
+                ? err.message
+                : "Terjadi kesalahan saat memuat VNC.",
+            loading: false,
+          });
         });
     }
     return () => {
@@ -222,7 +280,7 @@ export function DaytonaVncViewer({
         >
           {/* Fullscreen Header (only visible in fullscreen mode) */}
           {isFullscreen && (
-            <header className="h-11 w-full px-4 sm:px-5 bg-neutral-900/90 backdrop-blur-md flex items-center justify-between shrink-0 select-none border-none">
+            <header className="h-11 w-full px-4 sm:px-5 bg-neutral-900/90 backdrop-blur-md flex items-center justify-between shrink-0 select-none border-none gap-2">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="size-2 rounded-full bg-emerald-400 shrink-0" />
                 <span className="font-medium text-xs sm:text-sm text-foreground truncate">
@@ -231,6 +289,36 @@ export function DaytonaVncViewer({
                 <span className="text-[10px] font-mono text-muted-foreground/70 px-1.5 py-0.5 rounded-md bg-white/5 select-none hidden sm:inline-block">
                   1024×768
                 </span>
+
+                {/* Group Chat Bot Screen Switcher in Fullscreen */}
+                {memberBots.length > 1 && onSelectBot && (
+                  <div className="flex items-center gap-1 ml-2 pl-2 border-l border-white/10 overflow-x-auto scrollbar-none">
+                    {memberBots.map((m) => {
+                      const isActive = m.id === selectedBotId;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => onSelectBot(m.id)}
+                          className={cn(
+                            "h-6.5 px-2 rounded-full text-[11px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer shrink-0",
+                            isActive
+                              ? "bg-zinc-100 text-zinc-950 shadow-xs"
+                              : "bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10"
+                          )}
+                          title={`Lihat layar ${m.name}`}
+                        >
+                          <SeedAvatar
+                            seed={m.avatar}
+                            size={14}
+                            className="rounded-full shrink-0"
+                          />
+                          <span className="truncate max-w-[80px]">{m.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-1.5">
@@ -301,12 +389,43 @@ export function DaytonaVncViewer({
 
         {/* Panel Top Bar in inline preview mode: Clean top row matching resizable-screen-vnc.png */}
         {!isFullscreen && !isMobileView && (
-          <header className="h-12 w-full px-4 sm:px-6 flex items-center justify-end shrink-0 select-none">
+          <header className="h-12 w-full px-4 sm:px-6 flex items-center justify-between gap-2 shrink-0 select-none">
+            {memberBots.length > 1 && onSelectBot ? (
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none min-w-0 py-1">
+                {memberBots.map((m) => {
+                  const isActive = m.id === selectedBotId;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => onSelectBot(m.id)}
+                      className={cn(
+                        "h-7 px-2.5 rounded-full text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 border",
+                        isActive
+                          ? "bg-secondary text-foreground border-border/80 shadow-xs"
+                          : "bg-transparent text-muted-foreground border-transparent hover:text-foreground hover:bg-muted/40"
+                      )}
+                      title={`Lihat layar komputer ${m.name}`}
+                    >
+                      <SeedAvatar
+                        seed={m.avatar}
+                        size={16}
+                        className="rounded-full shrink-0"
+                      />
+                      <span className="truncate max-w-[96px]">{m.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div />
+            )}
+
             <button
               type="button"
               onClick={handleReload}
               disabled={isLoading}
-              className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-ring shrink-0"
               title="Muat ulang layar"
               aria-label="Muat ulang layar"
             >
@@ -375,12 +494,39 @@ export function DaytonaVncViewer({
 
             {/* Expanded dock header */}
             {!isMobileMinimized && (
-              <div className="h-12 px-4 border-b border-zinc-800 bg-zinc-950 flex items-center justify-between shrink-0 select-none">
-                <div className="flex items-center gap-2.5 min-w-0">
+              <div className="min-h-12 px-4 py-1.5 border-b border-zinc-800 bg-zinc-950 flex flex-wrap items-center justify-between gap-2 shrink-0 select-none">
+                <div className="flex items-center gap-2 min-w-0">
                   <MonitorIcon className="size-4 text-zinc-400 shrink-0" />
                   <span className="text-sm font-semibold text-zinc-200 truncate">
                     {`${botName}'s screen`}
                   </span>
+                  {memberBots.length > 1 && onSelectBot && (
+                    <div className="flex items-center gap-1 ml-1 overflow-x-auto scrollbar-none">
+                      {memberBots.map((m) => {
+                        const isActive = m.id === selectedBotId;
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => onSelectBot(m.id)}
+                            className={cn(
+                              "h-6 px-2 rounded-full text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer shrink-0",
+                              isActive
+                                ? "bg-zinc-800 text-zinc-100 border border-zinc-700"
+                                : "text-zinc-400 hover:text-zinc-200"
+                            )}
+                          >
+                            <SeedAvatar
+                              seed={m.avatar}
+                              size={12}
+                              className="rounded-full shrink-0"
+                            />
+                            <span className="truncate max-w-[70px]">{m.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">

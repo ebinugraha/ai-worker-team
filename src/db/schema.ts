@@ -22,6 +22,7 @@ export const chats = pgTable(
     name: text("name"),
     latestRunId: text("latest_run_id"),
     lastMessagePreview: text("last_message_preview"),
+    transcriptData: text("transcript_data"),
     lastMessageAt: timestamp("last_message_at", {
       withTimezone: true,
       mode: "date",

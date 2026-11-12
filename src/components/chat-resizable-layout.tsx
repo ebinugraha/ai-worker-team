@@ -21,6 +21,8 @@ export interface ChatResizableLayoutProps {
     name: string;
     avatar: string;
     job?: string;
+    instruction?: string | null;
+    sandboxId?: string | null;
   }>;
   availableBots?: Array<{
     id: string;
@@ -52,6 +54,40 @@ export function ChatResizableLayout({
   const isMobile = useIsMobile();
   const [isMonitorOpen, setIsMonitorOpen] = React.useState(false);
   const [isDragging, setIsDragging] = React.useState(false);
+  const [selectedMonitorBotId, setSelectedMonitorBotId] = React.useState<string>(
+    () => (isGroup && members.length > 0 ? members[0].id : botId)
+  );
+
+  // Sync VNC monitor screen when active bot changes in group chat (via composer or handoff)
+  React.useEffect(() => {
+    if (!isGroup) return;
+    const handleBotSelected = (e: Event) => {
+      const custom = e as CustomEvent<{ chatId?: string; botId?: string }>;
+      if (
+        custom.detail?.chatId === botId &&
+        custom.detail?.botId &&
+        members.some((m) => m.id === custom.detail.botId)
+      ) {
+        setSelectedMonitorBotId(custom.detail.botId);
+      }
+    };
+    window.addEventListener("genichiro:select-bot", handleBotSelected);
+    return () => {
+      window.removeEventListener("genichiro:select-bot", handleBotSelected);
+    };
+  }, [isGroup, botId, members]);
+
+  const activeMonitorBot = React.useMemo(() => {
+    if (!isGroup || members.length === 0) return null;
+    return members.find((m) => m.id === selectedMonitorBotId) ?? members[0];
+  }, [isGroup, members, selectedMonitorBotId]);
+
+  const effectiveSandboxId = isGroup
+    ? activeMonitorBot?.sandboxId ?? null
+    : sandboxId;
+  const effectiveMonitorBotName = isGroup
+    ? activeMonitorBot?.name ?? botName
+    : botName;
 
   React.useEffect(() => {
     if (!isDragging) return;
@@ -63,28 +99,6 @@ export function ChatResizableLayout({
       window.removeEventListener("mouseup", handlePointerUp);
     };
   }, [isDragging]);
-
-  // Group chat does not have a desktop sandbox monitor panel
-  if (isGroup) {
-    return (
-      <div className="flex flex-col h-full min-h-0 min-w-0 w-full overflow-hidden">
-        <ChatHeader
-          botId={botId}
-          name={botName}
-          avatar={botAvatar}
-          isGroup={true}
-          avatars={avatars}
-          members={members}
-          availableBots={availableBots}
-          job={botJob}
-          instruction={botInstruction}
-        />
-        <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
-          {children}
-        </div>
-      </div>
-    );
-  }
 
   // Mobile layout: VNC is docked below the header with compact preview / fullscreen option,
   // without crushing the chat horizontally or blocking the chat messages and composer.
@@ -109,11 +123,14 @@ export function ChatResizableLayout({
         {isMonitorOpen && (
           <div className="w-full shrink-0 border-b border-border bg-card/40 backdrop-blur-sm">
             <DaytonaVncViewer
-              sandboxId={sandboxId}
-              botName={botName}
-              initialVncUrl={initialVncUrl}
+              sandboxId={effectiveSandboxId}
+              botName={effectiveMonitorBotName}
+              initialVncUrl={isGroup ? null : initialVncUrl}
               isMobileView
               onClose={() => setIsMonitorOpen(false)}
+              memberBots={isGroup ? members : undefined}
+              selectedBotId={isGroup ? activeMonitorBot?.id : undefined}
+              onSelectBot={isGroup ? setSelectedMonitorBotId : undefined}
             />
           </div>
         )}
@@ -181,10 +198,13 @@ export function ChatResizableLayout({
               className="flex flex-col h-full min-h-0 min-w-0 bg-background overflow-hidden"
             >
               <DaytonaVncViewer
-                sandboxId={sandboxId}
-                botName={botName}
-                initialVncUrl={initialVncUrl}
+                sandboxId={effectiveSandboxId}
+                botName={effectiveMonitorBotName}
+                initialVncUrl={isGroup ? null : initialVncUrl}
                 onClose={() => setIsMonitorOpen(false)}
+                memberBots={isGroup ? members : undefined}
+                selectedBotId={isGroup ? activeMonitorBot?.id : undefined}
+                onSelectBot={isGroup ? setSelectedMonitorBotId : undefined}
               />
             </ResizablePanel>
           </>

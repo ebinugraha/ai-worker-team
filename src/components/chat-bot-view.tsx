@@ -56,6 +56,8 @@ import {
   BrainIcon,
   ChevronDownIcon,
   CheckIcon,
+  CopyIcon,
+  RotateCcwIcon,
   Loader2Icon,
   AlertTriangleIcon,
   UsersIcon,
@@ -95,6 +97,111 @@ export interface ChatBotViewProps {
 interface ChatBotContentProps extends ChatBotViewProps {
   initialMessages: UIMessage[];
   transport: ReturnType<typeof useTriggerChatTransport<typeof chatAgent>>;
+}
+
+function AssistantMessageActions({
+  text,
+  onRetry,
+  disabled,
+}: {
+  text: string;
+  onRetry?: () => void;
+  disabled?: boolean;
+}) {
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopy = async () => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore clipboard errors
+    }
+  };
+
+  if (!text && !onRetry) return null;
+
+  return (
+    <div className="flex items-center gap-1 pt-0.5 select-none">
+      {text && (
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="h-7 px-2 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/70 flex items-center gap-1.5 transition-colors cursor-pointer"
+          title={copied ? "Tersalin" : "Salin jawaban"}
+        >
+          {copied ? (
+            <>
+              <CheckIcon className="size-3.5 text-emerald-400" />
+              <span className="text-zinc-300">Tersalin</span>
+            </>
+          ) : (
+            <>
+              <CopyIcon className="size-3.5" />
+              <span>Salin</span>
+            </>
+          )}
+        </button>
+      )}
+      {onRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          disabled={disabled}
+          className="h-7 px-2 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/70 flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+          title="Ulangi generasi jawaban"
+        >
+          <RotateCcwIcon className="size-3.5" />
+          <span>Ulangi</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function getStarterPrompts(
+  isGroup: boolean,
+  botName: string,
+  botJob?: string,
+  memberBots?: MemberBot[]
+): Array<{ label: string; prompt: string }> {
+  if (isGroup && memberBots && memberBots.length > 0) {
+    const first = memberBots[0];
+    const second = memberBots[1] ?? memberBots[0];
+    return [
+      {
+        label: `Minta bantuan @${first.name}`,
+        prompt: `@${first.name} bantu saya menyiapkan dan merapikan pekerjaan hari ini.`,
+      },
+      {
+        label: `Diskusi bersama @${second.name}`,
+        prompt: `@${second.name} tolong berikan saran dan langkah-langkah praktis untuk menyelesaikan tugas ini.`,
+      },
+      {
+        label: "Lihat layar komputer",
+        prompt: "Tolong tampilkan layar komputer yang sedang kamu gunakan saat ini.",
+      },
+    ];
+  }
+
+  return [
+    {
+      label: "Cari & rangkum informasi",
+      prompt:
+        "Bantu saya mencari informasi terbaru dan buatkan ringkasan yang mudah dipahami.",
+    },
+    {
+      label: "Bantu susun dokumen",
+      prompt:
+        "Bantu saya menyusun draf tulisan atau dokumen yang rapi dan jelas.",
+    },
+    {
+      label: "Lihat layar komputer",
+      prompt: `Tolong tampilkan layar kerja komputer ${botName} saat ini.`,
+    },
+  ];
 }
 
 function ChatBotContent({
@@ -141,11 +248,65 @@ function ChatBotContent({
     return memberBots.find((b) => b.id === selectedBotId) ?? memberBots[0];
   }, [memberBots, selectedBotId]);
 
+  // Notify ChatResizableLayout whenever the active bot changes in group chat so VNC monitor stays synced
+  React.useEffect(() => {
+    if (!isGroup || !selectedBotId) return;
+    window.dispatchEvent(
+      new CustomEvent("genichiro:select-bot", {
+        detail: { chatId, botId: selectedBotId },
+      })
+    );
+  }, [isGroup, chatId, selectedBotId]);
+
+  const starterPrompts = React.useMemo(
+    () => getStarterPrompts(isGroup, botName, botJob, memberBots),
+    [isGroup, botName, botJob, memberBots]
+  );
+
+  // @mention autocomplete state for group chats
+  const [mentionIndex, setMentionIndex] = React.useState(0);
+  const mentionMatch = React.useMemo(() => {
+    if (!isGroup || !memberBots || memberBots.length === 0) return null;
+    const match = input.match(/(?:^|\s)@([^\s@]*)$/);
+    if (!match) return null;
+    return {
+      query: match[1].toLowerCase(),
+      rawToken: `@${match[1]}`,
+    };
+  }, [isGroup, memberBots, input]);
+
+  const matchingMentionBots = React.useMemo(() => {
+    if (!mentionMatch || !memberBots) return [];
+    return memberBots.filter(
+      (b) =>
+        b.name.toLowerCase().includes(mentionMatch.query) ||
+        (b.job && b.job.toLowerCase().includes(mentionMatch.query))
+    );
+  }, [mentionMatch, memberBots]);
+
+  const handleSelectMentionBot = React.useCallback(
+    (bot: MemberBot) => {
+      setSelectedBotId(bot.id);
+      transport.setClientData({ botId: bot.id });
+      setInput((prev) =>
+        prev.replace(/(?:^|\s)@([^\s@]*)$/, (full) => {
+          const leadingSpace = full.startsWith(" ") ? " " : "";
+          return `${leadingSpace}@${bot.name} `;
+        })
+      );
+      setMentionIndex(0);
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 0);
+    },
+    [transport]
+  );
+
   const { messages, sendMessage, status, stop, error } = useChat({
     id: chatId,
     messages: initialMessages,
     transport,
-    resume: initialMessages.length > 0,
+    resume: true,
     onFinish: ({ message }) => {
       if (isGroup && memberBots && memberBots.length > 0) {
         for (const part of message.parts) {
@@ -189,6 +350,40 @@ function ChatBotContent({
       }
     },
   });
+
+  // Optimistically persist new user messages with their exact useChat-generated ID
+  // so refreshing immediately after sending never loses the message.
+  const persistedUserIdsRef = React.useRef<Set<string>>(
+    new Set(initialMessages.map((m) => m.id))
+  );
+
+  React.useEffect(() => {
+    if (!messages || messages.length === 0) return;
+    const lastMsg = messages[messages.length - 1];
+    if (
+      lastMsg &&
+      lastMsg.role === "user" &&
+      lastMsg.id &&
+      !persistedUserIdsRef.current.has(lastMsg.id)
+    ) {
+      persistedUserIdsRef.current.add(lastMsg.id);
+      const textPart = lastMsg.parts?.find(
+        (p): p is { type: "text"; text: string } =>
+          p.type === "text" && typeof p.text === "string"
+      );
+      if (textPart?.text) {
+        const { cleanText } = extractAttachmentsFromText(textPart.text);
+        recordChatActivityAction({
+          chatId,
+          preview: `You: ${cleanText || "Mengirim lampiran"}`,
+          userMessage: {
+            id: lastMsg.id,
+            text: textPart.text,
+          },
+        }).catch(() => {});
+      }
+    }
+  }, [messages, chatId]);
 
   // Deduplicate messages by ID to prevent duplicate React keys and duplicate bubbles
   const displayMessages = React.useMemo(() => {
@@ -501,7 +696,20 @@ function ChatBotContent({
       return;
     }
 
-    const botIdToTarget = isGroup && selectedBot ? selectedBot.id : chatId;
+    let botIdToTarget = isGroup && selectedBot ? selectedBot.id : chatId;
+    if (isGroup && memberBots.length > 0 && trimmed) {
+      const lowerInput = trimmed.toLowerCase();
+      const sortedMembers = [...memberBots].sort(
+        (a, b) => b.name.length - a.name.length
+      );
+      for (const m of sortedMembers) {
+        if (lowerInput.includes(`@${m.name.toLowerCase()}`)) {
+          botIdToTarget = m.id;
+          setSelectedBotId(m.id);
+          break;
+        }
+      }
+    }
     transport.setClientData({ botId: botIdToTarget });
 
     let finalPrompt = trimmed;
@@ -663,7 +871,83 @@ function ChatBotContent({
     [stop, transport, chatId]
   );
 
+  const handleRetryMessage = React.useCallback(
+    (assistantMsgIndex: number) => {
+      if (isLoading || isUploadingAttachments) return;
+      let userTextToRetry = "";
+      let targetBotId = isGroup && selectedBot ? selectedBot.id : chatId;
+
+      for (let i = assistantMsgIndex - 1; i >= 0; i--) {
+        const msg = displayMessages[i];
+        if (msg && msg.role === "user") {
+          for (const part of msg.parts) {
+            if (part.type === "text" && part.text) {
+              userTextToRetry = part.text;
+              break;
+            }
+          }
+          if (
+            msg.metadata &&
+            typeof msg.metadata === "object" &&
+            "botId" in msg.metadata &&
+            typeof (msg.metadata as { botId?: unknown }).botId === "string"
+          ) {
+            targetBotId = (msg.metadata as { botId: string }).botId;
+          }
+          break;
+        }
+      }
+
+      if (!userTextToRetry) return;
+      transport.setClientData({ botId: targetBotId });
+      sendMessage(
+        {
+          text: userTextToRetry,
+          metadata: { botId: targetBotId },
+        },
+        {
+          metadata: { botId: targetBotId },
+        }
+      );
+    },
+    [
+      isLoading,
+      isUploadingAttachments,
+      isGroup,
+      selectedBot,
+      chatId,
+      displayMessages,
+      transport,
+      sendMessage,
+    ]
+  );
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (isGroup && matchingMentionBots.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionIndex((prev) => (prev + 1) % matchingMentionBots.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionIndex(
+          (prev) =>
+            (prev - 1 + matchingMentionBots.length) % matchingMentionBots.length
+        );
+        return;
+      }
+      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+        e.preventDefault();
+        const chosen =
+          matchingMentionBots[mentionIndex] ?? matchingMentionBots[0];
+        if (chosen) {
+          handleSelectMentionBot(chosen);
+        }
+        return;
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -672,6 +956,7 @@ function ChatBotContent({
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
+    setMentionIndex(0);
     const textarea = e.target;
     textarea.style.height = "auto";
     textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
@@ -691,7 +976,7 @@ function ChatBotContent({
           <MessageScrollerViewport className="px-4 sm:px-6 py-6 sm:py-8">
             <MessageScrollerContent className="w-full max-w-3xl mx-auto min-h-full flex flex-col justify-between">
               {displayMessages.length === 0 ? (
-                <div className="flex-1 flex flex-col items-center justify-center text-center px-4 py-16 select-none my-auto">
+                <div className="flex-1 flex flex-col items-center justify-center text-center px-4 py-12 select-none my-auto">
                   <div className="size-13 rounded-2xl bg-zinc-800/60 border border-zinc-700/50 flex items-center justify-center mb-4 text-zinc-300 shadow-sm overflow-hidden">
                     {isGroup ? (
                       <UsersIcon className="size-6 text-zinc-300" />
@@ -699,14 +984,42 @@ function ChatBotContent({
                       <SeedAvatar seed={botAvatar || botName} size={42} className="rounded-xl" />
                     )}
                   </div>
-                  <h1 className="text-xl sm:text-2xl font-semibold text-zinc-100 tracking-tight">
-                    {isGroup ? `Grup ${botName}` : `Halo, saya ${botName}`}
+                  <h1 className="text-xl sm:text-2xl font-semibold text-foreground tracking-tight">
+                    {isGroup ? botName : `Halo, saya ${botName}`}
                   </h1>
-                  <p className="text-sm text-zinc-400 mt-2 max-w-md leading-relaxed">
+                  <p className="text-sm text-muted-foreground mt-1.5 max-w-md leading-relaxed">
                     {isGroup
-                      ? "Semua anggota tim siap berkolaborasi menjalankan instruksi dan tugas komputer."
-                      : (botJob || "Asisten AI cerdas siap membantu mengeksekusi tugas, analisis berkas, dan perintah komputer.")}
+                      ? "Tulis pesan untuk berdiskusi bersama tim asisten Anda. Ketik @ untuk memilih asisten tertentu."
+                      : (botJob || "Ada yang bisa saya bantu hari ini?")}
                   </p>
+
+                  {/* Starter Prompt Cards */}
+                  {starterPrompts.length > 0 && (
+                    <div className="mt-6 flex flex-wrap items-center justify-center gap-2 max-w-xl">
+                      {starterPrompts.map((item, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setInput(item.prompt);
+                            setTimeout(() => {
+                              if (textareaRef.current) {
+                                textareaRef.current.focus();
+                                textareaRef.current.style.height = "auto";
+                                textareaRef.current.style.height = `${Math.min(
+                                  textareaRef.current.scrollHeight,
+                                  160
+                                )}px`;
+                              }
+                            }, 0);
+                          }}
+                          className="px-3.5 py-2 rounded-full bg-muted/40 hover:bg-muted/80 border border-border/60 text-xs sm:text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col gap-6 flex-1 w-full pb-4">
@@ -743,7 +1056,7 @@ function ChatBotContent({
                                 {isGroup && targetBotForUser && (
                                   <Badge
                                     variant="secondary"
-                                    className="inline-flex items-center align-middle mr-2 h-6 px-2 py-0 gap-1.5 bg-zinc-950 text-zinc-300 border border-zinc-800 text-xs font-mono rounded select-none -translate-y-px"
+                                    className="inline-flex items-center align-middle mr-2 h-6 px-2 py-0 gap-1.5 bg-zinc-950 text-zinc-300 border border-zinc-800 text-xs font-sans rounded-md select-none -translate-y-px"
                                     title={`Ditujukan ke ${targetBotForUser.name}`}
                                   >
                                     <SeedAvatar
@@ -818,8 +1131,8 @@ function ChatBotContent({
                                   }
                                   if (part.type === "reasoning") {
                                     return (
-                                      <Trace key={index} className="my-1.5">
-                                        <TraceCollapsible defaultOpen={true}>
+                                      <Trace key={index} className="my-1">
+                                        <TraceCollapsible defaultOpen={false}>
                                           <TraceCollapsibleTrigger>
                                             <TraceLine
                                               status={
@@ -829,16 +1142,16 @@ function ChatBotContent({
                                               }
                                             >
                                               <TraceIcon>
-                                                <BrainIcon className="size-3.5 text-zinc-400" />
+                                                <BrainIcon className="size-3.5 text-muted-foreground" />
                                               </TraceIcon>
-                                              <TraceTitle className="text-xs sm:text-sm font-semibold text-zinc-200">
+                                              <TraceTitle className="text-xs sm:text-[13px] font-sans text-muted-foreground">
                                                 {status === "streaming" && isLatestMessage
                                                   ? "Sedang berpikir..."
-                                                  : "Selesai berpikir"}
+                                                  : "Proses berpikir"}
                                               </TraceTitle>
                                             </TraceLine>
                                           </TraceCollapsibleTrigger>
-                                          <TraceCollapsibleContent className="mt-1.5 pl-3.5 text-xs text-zinc-300 whitespace-pre-wrap border-l-2 border-zinc-700 ml-1.5 py-2 leading-relaxed bg-zinc-950/60 rounded-r-lg font-mono">
+                                          <TraceCollapsibleContent className="mt-1.5 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed font-sans select-text">
                                             {part.text}
                                           </TraceCollapsibleContent>
                                         </TraceCollapsible>
@@ -858,39 +1171,39 @@ function ChatBotContent({
                                   return null;
                                 })}
 
-                                {/* Live step & activity indicator while streaming */}
-                                {!isUser && isLatestMessage && status === "streaming" && (
-                                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-zinc-200 mt-1.5 select-none w-fit">
-                                    <Loader2Icon className="size-3.5 text-zinc-400 animate-spin" />
-                                    <span className="text-xs text-zinc-300">
-                                      {(() => {
-                                        const lastPart =
-                                          message.parts[message.parts.length - 1];
-                                        if (lastPart?.type === "reasoning") {
-                                          return "Sedang berpikir & merencanakan langkah...";
-                                        }
-                                        if (lastPart && isToolPart(lastPart)) {
-                                          const tName = getToolName(lastPart);
-                                          if (tName === "bash" || tName === "bash_exec")
-                                            return "Sedang menjalankan perintah komputer...";
-                                          if (tName === "readFile" || tName === "file_system")
-                                            return "Sedang memeriksa berkas...";
-                                          if (tName === "writeFile")
-                                            return "Sedang menulis berkas...";
-                                          if (tName === "computer_use" || tName === "mouseClick")
-                                            return "Sedang mengoperasikan layar...";
-                                          if (
-                                            tName === "viewScreen" ||
-                                            tName === "showScreen"
-                                          )
-                                            return "Sedang mengambil tampilan layar...";
-                                          return `Sedang menjalankan: ${tName}...`;
-                                        }
-                                        return "Sedang mengetik jawaban...";
-                                      })()}
-                                    </span>
-                                  </div>
+                                {/* Action bar (Copy & Retry) for completed assistant messages */}
+                                {!isUser && (!isLatestMessage || !isLoading) && (
+                                  <AssistantMessageActions
+                                    text={message.parts
+                                      .filter(
+                                        (p): p is { type: "text"; text: string } =>
+                                          p.type === "text" &&
+                                          typeof p.text === "string"
+                                      )
+                                      .map((p) => p.text)
+                                      .join("\n\n")
+                                      .trim()}
+                                    onRetry={() => handleRetryMessage(messageIndex)}
+                                    disabled={isLoading || isUploadingAttachments}
+                                  />
                                 )}
+
+                                {/* Subtle streaming indicator only when no content/tool part has rendered yet */}
+                                {!isUser &&
+                                  isLatestMessage &&
+                                  status === "streaming" &&
+                                  message.parts.length === 0 && (
+                                    <Trace className="my-1">
+                                      <TraceLine status="running">
+                                        <TraceIcon>
+                                          <Loader2Icon className="size-3.5 text-muted-foreground animate-spin" />
+                                        </TraceIcon>
+                                        <TraceTitle className="text-xs sm:text-[13px] font-sans text-muted-foreground">
+                                          Sedang menyiapkan jawaban...
+                                        </TraceTitle>
+                                      </TraceLine>
+                                    </Trace>
+                                  )}
                               </div>
                             </div>
                           )}
@@ -906,26 +1219,32 @@ function ChatBotContent({
                         <div className="flex items-start gap-3 max-w-[92%] sm:max-w-[85%]">
                           {isGroup && selectedBot && (
                             <div
-                              className="size-8 rounded-full overflow-hidden shrink-0 mt-1 border border-border/50 bg-muted/40 flex items-center justify-center select-none"
+                              className="size-7 rounded-full overflow-hidden shrink-0 mt-0.5 border border-border/50 bg-muted/40 flex items-center justify-center select-none"
                               title={selectedBot.name}
                             >
                               <SeedAvatar
                                 seed={selectedBot.avatar}
-                                size={32}
+                                size={28}
                                 alt={selectedBot.name}
                               />
                             </div>
                           )}
                           <div className="flex flex-col gap-1 items-start">
                             {isGroup && selectedBot && (
-                              <span className="text-xs font-medium text-zinc-400 select-none pl-1">
+                              <span className="text-xs font-medium text-muted-foreground select-none pl-0.5">
                                 {selectedBot.name}
                               </span>
                             )}
-                            <div className="w-fit px-3.5 py-2 rounded-xl text-xs sm:text-sm bg-zinc-900 border border-zinc-800 text-zinc-300 self-start flex items-center gap-2 shadow-xs">
-                              <Loader2Icon className="size-3.5 animate-spin text-zinc-400 shrink-0" />
-                              <span>Sedang memproses...</span>
-                            </div>
+                            <Trace className="my-1">
+                              <TraceLine status="running">
+                                <TraceIcon>
+                                  <Loader2Icon className="size-3.5 animate-spin text-muted-foreground shrink-0" />
+                                </TraceIcon>
+                                <TraceTitle className="text-xs sm:text-[13px] font-sans text-muted-foreground">
+                                  Sedang memproses...
+                                </TraceTitle>
+                              </TraceLine>
+                            </Trace>
                           </div>
                         </div>
                       </div>
@@ -936,14 +1255,14 @@ function ChatBotContent({
                   {error && (
                     <div className="flex w-full justify-start my-2">
                       <div className="flex items-start gap-2.5 max-w-[92%] sm:max-w-[85%]">
-                        <div className="rounded-2xl border border-rose-500/30 bg-rose-950/25 p-3.5 text-xs text-rose-200 flex items-start gap-2.5 shadow-sm">
-                          <AlertTriangleIcon className="size-4 text-rose-400 shrink-0 mt-0.5" />
-                          <div className="flex flex-col gap-1">
-                            <span className="font-semibold text-rose-300">
-                              ⚠️ Terjadi Gangguan / Gagal Merespon
+                        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-foreground flex items-start gap-2.5">
+                          <AlertTriangleIcon className="size-4 text-destructive shrink-0 mt-0.5" />
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium text-foreground">
+                              Belum dapat merespons
                             </span>
-                            <p className="text-neutral-300 leading-relaxed text-[11px]">
-                              Koneksi ke model AI atau eksekusi tools mengalami kendala ({error.message || "Upstream endpoint timeout / error"}). Silakan coba kirim ulang atau cek pengaturan model di menu Settings.
+                            <p className="text-muted-foreground leading-relaxed text-xs">
+                              Terjadi kendala saat memproses permintaan Anda. Silakan coba kirim ulang pesan atau periksa pengaturan model di menu Settings.
                             </p>
                           </div>
                         </div>
@@ -986,6 +1305,49 @@ function ChatBotContent({
           />
 
           <div className="relative w-full rounded-[26px] border border-zinc-800/90 bg-zinc-900/85 focus-within:border-zinc-700 focus-within:ring-1 focus-within:ring-zinc-700/50 transition-all duration-200 flex flex-col shadow-lg shadow-black/25">
+            {/* @mention Autocomplete Popover in Group Chat */}
+            {isGroup && matchingMentionBots.length > 0 && (
+              <div className="absolute bottom-full left-3 mb-2 w-64 p-1.5 rounded-2xl bg-popover/95 backdrop-blur-md border border-border shadow-xl z-50 select-none">
+                <div className="px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                  Pilih asisten
+                </div>
+                <div className="flex flex-col gap-0.5 max-h-48 overflow-y-auto">
+                  {matchingMentionBots.map((bot, idx) => {
+                    const isHighlighted = idx === mentionIndex;
+                    return (
+                      <button
+                        key={bot.id}
+                        type="button"
+                        onClick={() => handleSelectMentionBot(bot)}
+                        className={cn(
+                          "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left text-xs transition-colors cursor-pointer",
+                          isHighlighted
+                            ? "bg-zinc-800 text-zinc-100 font-medium"
+                            : "text-zinc-300 hover:bg-zinc-900"
+                        )}
+                      >
+                        <SeedAvatar
+                          seed={bot.avatar}
+                          size={22}
+                          className="rounded-md shrink-0"
+                        />
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="truncate font-semibold text-zinc-100">
+                            @{bot.name}
+                          </span>
+                          {bot.job && (
+                            <span className="truncate text-[11px] text-zinc-400">
+                              {bot.job}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Attachment preview thumbnails */}
             {attachments.length > 0 && (
               <div className="px-4 pt-3 pb-1">
@@ -1170,9 +1532,23 @@ export function ChatBotView(props: ChatBotViewProps) {
       startChatSession({ chatId, clientData }),
   });
 
+  const hydrateAndLoadTranscript = React.useCallback(
+    async (params: Parameters<typeof loadChatTranscript>[0]) => {
+      const result = await loadChatTranscript(params);
+      if (result?.publicAccessToken) {
+        transport.setSession(params.chatId, {
+          publicAccessToken: result.publicAccessToken,
+          lastEventId: result.cursors?.lastOutEventId,
+        });
+      }
+      return result;
+    },
+    [transport]
+  );
+
   const { messages: transcriptMessages, isLoading } = useLoadTranscript(
     props.chatId,
-    loadChatTranscript,
+    hydrateAndLoadTranscript,
     {
       transport,
     }
